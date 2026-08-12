@@ -137,7 +137,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 1 is active."""
 
     time_1_end = time_of_day(3039, writable=True)
-    """Time 1 End (read)."""
+    """Time slot 1 end."""
 
     time_2_begin = time_of_day(3040, mask=0x1FFF, writable=True)
     """Time slot 2 start."""
@@ -149,7 +149,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 2 is active."""
 
     time_2_end = time_of_day(3041, writable=True)
-    """Time 2 End (read)."""
+    """Time slot 2 end."""
 
     time_3_begin = time_of_day(3042, mask=0x1FFF, writable=True)
     """Time slot 3 start."""
@@ -161,7 +161,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 3 is active."""
 
     time_3_end = time_of_day(3043, writable=True)
-    """Time 3 End (read)."""
+    """Time slot 3 end."""
 
     time_4_begin = time_of_day(3044, mask=0x1FFF, writable=True)
     """Time slot 4 start."""
@@ -173,7 +173,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 4 is active."""
 
     time_4_end = time_of_day(3045, writable=True)
-    """Time 4 End (read)."""
+    """Time slot 4 end."""
 
     ems_charging_rate = integer(3047, signed=False, writable=in_range(0, 100))
     """Ems Charging Rate."""
@@ -194,7 +194,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 5 is active."""
 
     time_5_end = time_of_day(3051, writable=True)
-    """Time 5 End (read)."""
+    """Time slot 5 end."""
 
     time_6_begin = time_of_day(3052, mask=0x1FFF, writable=True)
     """Time slot 6 start."""
@@ -206,7 +206,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 6 is active."""
 
     time_6_end = time_of_day(3053, writable=True)
-    """Time 6 End (read)."""
+    """Time slot 6 end."""
 
     time_7_begin = time_of_day(3054, mask=0x1FFF, writable=True)
     """Time slot 7 start."""
@@ -218,7 +218,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 7 is active."""
 
     time_7_end = time_of_day(3055, writable=True)
-    """Time 7 End (read)."""
+    """Time slot 7 end."""
 
     time_8_begin = time_of_day(3056, mask=0x1FFF, writable=True)
     """Time slot 8 start."""
@@ -230,7 +230,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 8 is active."""
 
     time_8_end = time_of_day(3057, writable=True)
-    """Time 8 End (read)."""
+    """Time slot 8 end."""
 
     time_9_begin = time_of_day(3058, mask=0x1FFF, writable=True)
     """Time slot 9 start."""
@@ -242,7 +242,7 @@ class Gen4HybridSettings(GrowattComponent):
     """Whether time slot 9 is active."""
 
     time_9_end = time_of_day(3059, writable=True)
-    """Time 9 End (read)."""
+    """Time slot 9 end."""
 
     ems_discharging_stop_soc_on_grid = integer(3067, signed=False, writable=in_range(10, 100))
     """Ems Discharging Stop Soc On Grid."""
