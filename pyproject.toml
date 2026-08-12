@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "growatt-modbus"
+version = "0.1.0"
+description = "Read and control Growatt solar inverters (MIN/MOD/MID/MAX/SPH/SPA/WIT/SPF) over Modbus."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "growatt-modbus contributors" }]
+keywords = ["modbus", "growatt", "inverter", "solar", "battery", "home-assistant"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Home Automation",
+]
+# The device-modelling framework plus a concrete backend. tmodbus speaks both
+# transports Growatt inverters are reached over: RTU-over-TCP gateways and
+# serial RS-485.
+dependencies = ["modbus-connection[tmodbus]>=4.6.1"]
+
+[project.urls]
+Homepage = "https://github.com/balloobbot/growatt-modbus"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.14",
+    "mypy>=1.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/growatt_modbus"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["growatt_modbus"]
+mypy_path = "src"
+strict = true
