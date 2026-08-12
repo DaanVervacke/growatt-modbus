@@ -299,14 +299,14 @@ async def detect(
     variant: Variant | None = None
 
     for address in SERIAL_NUMBER_REGISTERS:
-        candidate = await _read_string(unit, address, 5)
+        candidate = await _read_identifier(unit, address)
         found = variant_from_identifier(candidate, SERIAL_PREFIX_VARIANTS)
         if found is not None:
             identifier, variant = candidate, found
             break
 
     if variant is None:
-        firmware = await _read_string(unit, FIRMWARE_REGISTER, 3)
+        firmware = await _read_identifier(unit, FIRMWARE_REGISTER)
         variant = variant_from_identifier(firmware, FIRMWARE_PREFIX_VARIANTS)
         if variant is None:
             # Some older models expose a model prefix only at the firmware register.
@@ -322,15 +322,19 @@ async def detect(
     return build(unit, variant, identifier)
 
 
-async def _read_string(unit: ModbusUnit, address: int, words: int) -> str | None:
-    """Read a null-padded ASCII string, or None if the inverter refuses it."""
+# Every identifier the inverter reports is read as ten ASCII characters, at
+# whichever address answers — the same probe upstream uses.
+_IDENTIFIER_WORDS = 5
+
+
+async def _read_identifier(unit: ModbusUnit, address: int) -> str | None:
+    """Read an identifier string, or None if the inverter has none there."""
     try:
-        registers = await unit.read_holding_registers(address, words)
+        registers = await unit.read_holding_registers(address, _IDENTIFIER_WORDS)
     except ModbusExceptionError:
         return None
     raw = b"".join(word.to_bytes(2, "big") for word in registers)
-    text = raw.decode("ascii", errors="ignore").split("\x00")[0].strip()
-    return text or None
+    return raw.decode("ascii", errors="ignore").rstrip("\x00").strip() or None
 
 
 def _pv_total(status: GrowattComponent, pattern: str, count: int = 4) -> float | None:

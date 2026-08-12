@@ -19,10 +19,10 @@ class Gen1Settings(GrowattComponent):
     inverter_switch = option(0, {0: "Inverter Off", 1: "Inverter On"}, writable=True)
     """Inverter Switch."""
 
-    active_power_limit = integer(3, signed=False, writable=in_range(0, 100))
+    active_power_limit = integer(3, signed=False, writable=in_range(0, 100, 255))
     """Active Power Limit."""
 
-    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100))
+    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100, 255))
     """Reactive Power Limit."""
 
     firmware_version = string(9, 3)
@@ -56,7 +56,7 @@ class Gen1Settings(GrowattComponent):
     inverter_module = inverter_module_code(28)
     """Inverter Module."""
 
-    rtc = rtc(45)
+    rtc = rtc(45, writable=True)
     """RTC."""
 
     FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {

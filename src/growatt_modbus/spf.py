@@ -27,10 +27,10 @@ class SpfSettings(GrowattComponent):
     )
     """State Charge."""
 
-    active_power_limit = integer(3, signed=False, writable=in_range(0, 100))
+    active_power_limit = integer(3, signed=False, writable=in_range(0, 100, 255))
     """Active Power Limit."""
 
-    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100))
+    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100, 255))
     """Reactive Power Limit."""
 
     pv_input_mode = option(7, {0: "Independent", 1: "Parallel"}, writable=True)
@@ -95,7 +95,7 @@ class SpfSettings(GrowattComponent):
     )
     """Battery Type."""
 
-    rtc = rtc(45)
+    rtc = rtc(45, writable=True)
     """RTC."""
 
     FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {

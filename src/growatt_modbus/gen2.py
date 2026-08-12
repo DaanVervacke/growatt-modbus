@@ -21,10 +21,10 @@ class Gen2Settings(GrowattComponent):
     )
     """Inverter Switch."""
 
-    active_power_limit = integer(3, signed=False, writable=in_range(0, 100))
+    active_power_limit = integer(3, signed=False, writable=in_range(0, 100, 255))
     """Active Power Limit."""
 
-    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100))
+    reactive_power_limit = integer(4, signed=True, writable=in_range(-100, 100, 255))
     """Reactive Power Limit."""
 
     firmware_version = string(9, 3)
@@ -58,7 +58,7 @@ class Gen2Settings(GrowattComponent):
     serialnumber = string(23, 5)
     """Serial Number."""
 
-    rtc = rtc(45)
+    rtc = rtc(45, writable=True)
     """RTC."""
 
     limit_grid_export = option(

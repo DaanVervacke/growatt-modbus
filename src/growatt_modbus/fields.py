@@ -89,12 +89,19 @@ class GrowattComponent(Component):
         return component
 
 
-def in_range(low: float, high: float) -> WriteValidator:
-    """Build a validator rejecting a value outside the inverter's accepted range."""
+def in_range(low: float, high: float, *sentinels: float) -> WriteValidator:
+    """Build a validator rejecting a value outside the inverter's accepted range.
+
+    ``sentinels`` are values outside the range that the register nonetheless
+    accepts — the power limits take 255 to mean "no limit", which the upstream
+    integration writes from a button rather than the slider.
+    """
+    allowed = frozenset(sentinels)
 
     def validate(value: Any) -> Any:
-        if not low <= value <= high:
-            raise ValueError(f"{value} is outside {low}..{high}")
+        if value not in allowed and not low <= value <= high:
+            extra = f" (or {sorted(allowed)})" if allowed else ""
+            raise ValueError(f"{value} is outside {low}..{high}{extra}")
         return value
 
     return validate
