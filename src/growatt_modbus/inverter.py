@@ -8,10 +8,16 @@ knows what it has can construct the class directly.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from modbus_connection import ModbusExceptionError
-from modbus_connection.model import ComponentGroup
+from modbus_connection import (
+    IllegalDataAddressError,
+    IllegalFunctionError,
+    ModbusConnectionError,
+    ModbusError,
+    ModbusExceptionError,
+)
 
 from .enums import INVERTER_FAULT, INVERTER_WARNING
 from .fields import GrowattComponent, total
@@ -25,6 +31,8 @@ from .gen3 import (
     Gen3VppSettings,
 )
 from .gen4 import (
+    Gen4BatteryModuleSettings,
+    Gen4BatteryModuleStatus,
     Gen4BatterySettings,
     Gen4BatteryStatus,
     Gen4HybridSettings,
@@ -35,6 +43,8 @@ from .gen4 import (
 )
 from .spf import SpfSettings, SpfStatus
 from .variants import (
+    BMS_TYPE_APX,
+    BMS_TYPE_REGISTER,
     FIRMWARE_PREFIX_VARIANTS,
     FIRMWARE_REGISTER,
     SERIAL_NUMBER_REGISTERS,
@@ -48,14 +58,36 @@ if TYPE_CHECKING:
     from modbus_connection import ModbusUnit
 
 
+@dataclass(frozen=True)
+class UpdateReport:
+    """What one poll refreshed, by the device's component attribute names.
+
+    A failed component kept its previous values and did not notify; the error
+    that failed it rides along. A dead link is never in here — the update
+    raises ``ModbusConnectionError`` instead of reporting partial silence.
+    """
+
+    updated: set[str]
+    failed: dict[str, ModbusError]
+
+    @property
+    def complete(self) -> bool:
+        """Whether every polled component refreshed."""
+        return not self.failed
+
+
 class GrowattInverter:
     """Base for the per-generation device objects.
 
     Subclasses build their sub-systems in ``_build`` and expose them as typed
-    attributes; everything polled is refreshed in one pooled set of reads.
+    attributes; ``POLLED`` names the ones a poll refreshes, in read order. Each
+    is read independently, so one refused block cannot blank the device.
     """
 
     GENERATION: ClassVar[Variant]
+    # Every component attribute a poll may refresh, in read order. A name whose
+    # attribute is None on this inverter is dropped by async_setup().
+    POLLED: ClassVar[tuple[str, ...]]
 
     def __init__(
         self,
@@ -72,27 +104,68 @@ class GrowattInverter:
         self.unit = unit
         self.variant = variant
         self.serial_number = serial_number
-        self.components: list[GrowattComponent] = []
         self._build()
-        self._group = ComponentGroup(unit, list(self.components))
+        self._polled: list[str] | None = None
 
     def _component[C: GrowattComponent](self, cls: type[C]) -> C | None:
-        """Build one sub-system for this inverter, registering it for polling."""
-        component = cls.for_variant(self.unit, self.variant, self.serial_number)
-        if component is not None:
-            self.components.append(component)
-        return component
+        """Build one sub-system for this inverter, or None if it serves no fields."""
+        return cls.for_variant(self.unit, self.variant, self.serial_number)
 
     def _build(self) -> None:
         raise NotImplementedError
 
-    async def async_update(self) -> None:
-        """Refresh every sub-system in one pooled set of block reads."""
-        await self._group.async_update()
+    async def async_setup(self) -> None:
+        """Settle which sub-systems this inverter polls.
+
+        Run by the first :meth:`async_update` if the caller does not run it
+        itself. A failure leaves the device unset up, so the next update retries.
+        """
+        self._polled = [name for name in self.POLLED if getattr(self, name) is not None]
+
+    async def async_update(self) -> UpdateReport:
+        """Refresh every sub-system this inverter serves, one at a time.
+
+        Components are read independently, the way the integration reads its
+        blocks: a sub-system whose read fails keeps its previous values while
+        the rest still refresh. Listeners fire only after every component has
+        been tried, and only on the ones that refreshed. A failure of the link
+        itself raises ``ModbusConnectionError`` instead of reporting.
+        """
+        if self._polled is None:
+            await self.async_setup()
+        assert self._polled is not None  # async_setup() builds it
+        updated: set[str] = set()
+        failed: dict[str, ModbusError] = {}
+        for name in self._polled:
+            component: GrowattComponent = getattr(self, name)
+            try:
+                await component.async_update(notify=False)
+            except ModbusConnectionError:
+                raise
+            except ModbusError as err:
+                failed[name] = err
+            else:
+                updated.add(name)
+        for name in updated:
+            fresh: GrowattComponent = getattr(self, name)
+            fresh.notify()
+        return UpdateReport(updated, failed)
 
     async def async_read_raw(self) -> dict[str, dict[int, int | bool]]:
-        """Refresh, and additionally return the raw register words read."""
-        return await self._group.async_read_raw()
+        """Refresh, and additionally return the raw register words read.
+
+        A diagnostic dump rather than a poll: it stops at the first refusal,
+        because there the error is the interesting part.
+        """
+        if self._polled is None:
+            await self.async_setup()
+        assert self._polled is not None  # async_setup() builds it
+        raw: dict[str, dict[int, int | bool]] = {}
+        for name in self._polled:
+            component: GrowattComponent = getattr(self, name)
+            for space, values in (await component.async_read_raw()).items():
+                raw.setdefault(space, {}).update(values)
+        return {space: dict(sorted(values.items())) for space, values in raw.items()}
 
     @property
     def firmware_control_version(self) -> str | None:
@@ -111,6 +184,7 @@ class Gen1Inverter(GrowattInverter):
     """A legacy Growatt PV inverter (TL-S, TL3-S, NEO)."""
 
     GENERATION = Variant.GEN
+    POLLED = ("settings", "status")
 
     settings: Gen1Settings
     status: Gen1Status
@@ -126,6 +200,7 @@ class Gen2Inverter(GrowattInverter):
     """A Growatt MOD / MID TL3-X PV inverter."""
 
     GENERATION = Variant.GEN2
+    POLLED = ("settings", "status")
 
     settings: Gen2Settings
     status: Gen2Status
@@ -146,6 +221,13 @@ class Gen3Inverter(GrowattInverter):
     """A Growatt SPH or SPA storage inverter."""
 
     GENERATION = Variant.GEN3
+    POLLED = (
+        "settings",
+        "status",
+        "storage_settings",
+        "storage_status",
+        "vpp_settings",
+    )
 
     settings: Gen3Settings
     status: Gen3Status
@@ -176,6 +258,17 @@ class Gen4Inverter(GrowattInverter):
     """A Growatt MIN / MOD / MID / WIT TL-XH hybrid or TL-X PV inverter."""
 
     GENERATION = Variant.GEN4
+    POLLED = (
+        "settings",
+        "status",
+        "hybrid_settings",
+        "hybrid_status",
+        "battery_settings",
+        "battery_module_settings",
+        "battery_status",
+        "battery_module_status",
+        "vpp_settings",
+    )
 
     settings: Gen4Settings
     status: Gen4Status
@@ -187,9 +280,29 @@ class Gen4Inverter(GrowattInverter):
         self.settings, self.status = settings, status
         self.hybrid_settings = self._component(Gen4HybridSettings)
         self.hybrid_status = self._component(Gen4HybridStatus)
-        self.battery_settings = self._component(Gen4BatterySettings)
-        self.battery_status = self._component(Gen4BatteryStatus)
         self.vpp_settings = self._component(Gen4VppSettings)
+        self._build_apx()
+
+    def _build_apx(self) -> None:
+        """Build the APX battery sub-systems, if the variant carries ``APX``."""
+        self.battery_settings = self._component(Gen4BatterySettings)
+        self.battery_module_settings = self._component(Gen4BatteryModuleSettings)
+        self.battery_status = self._component(Gen4BatteryStatus)
+        self.battery_module_status = self._component(Gen4BatteryModuleStatus)
+
+    async def async_setup(self) -> None:
+        """Probe for an APX battery, then settle what to poll.
+
+        The APX register bank exists only behind an APX HV pack — a hybrid with
+        an LG or ARK battery refuses all 29 of its blocks — so it is opted into
+        with ``Variant.APX`` or detected here from the BMS type the inverter
+        reports.
+        """
+        if Variant.HYBRID in self.variant and Variant.APX not in self.variant:
+            if await _has_apx_battery(self.unit):
+                self.variant |= Variant.APX
+                self._build_apx()
+        await super().async_setup()
 
     @property
     def battery_combined_power(self) -> float | None:
@@ -236,6 +349,7 @@ class SpfInverter(GrowattInverter):
     """A Growatt SPF or SPE off-grid inverter."""
 
     GENERATION = Variant.SPF
+    POLLED = ("settings", "status")
 
     settings: SpfSettings
     status: SpfStatus
@@ -285,13 +399,16 @@ async def detect(
     *,
     read_eps: bool = False,
     read_dcb: bool = False,
+    read_apx: bool = False,
 ) -> GrowattInverter:
     """Identify the inverter on ``unit`` and build the matching device object.
 
     The serial number is probed at each of the addresses Growatt has used, then
     the firmware string, exactly as the upstream integration does. Set
     ``read_eps`` / ``read_dcb`` for an inverter with a backup output or a dry
-    contact box, which adds the registers those bring.
+    contact box, which adds the registers those bring. ``read_apx`` forces the
+    APX battery registers on; left off, a Gen4 hybrid detects the pack itself
+    at :meth:`GrowattInverter.async_setup`.
 
     Raises ``LookupError`` if no prefix identifies the inverter.
     """
@@ -319,6 +436,8 @@ async def detect(
         variant |= Variant.EPS
     if read_dcb:
         variant |= Variant.DCB
+    if read_apx:
+        variant |= Variant.APX
     return build(unit, variant, identifier)
 
 
@@ -335,6 +454,19 @@ async def _read_identifier(unit: ModbusUnit, address: int) -> str | None:
         return None
     raw = b"".join(word.to_bytes(2, "big") for word in registers)
     return raw.decode("ascii", errors="ignore").rstrip("\x00").strip() or None
+
+
+async def _has_apx_battery(unit: ModbusUnit) -> bool:
+    """Whether an APX HV pack is attached, from the BMS type the inverter reports.
+
+    Only a refused register means "no APX bank"; anything transient propagates,
+    so a timeout is retried on the next update rather than latched as absence.
+    """
+    try:
+        words = await unit.read_holding_registers(BMS_TYPE_REGISTER, 1)
+    except (IllegalDataAddressError, IllegalFunctionError):
+        return False
+    return words[0] == BMS_TYPE_APX
 
 
 def _pv_total(status: GrowattComponent, pattern: str, count: int = 4) -> float | None:

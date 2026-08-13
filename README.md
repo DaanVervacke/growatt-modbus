@@ -52,6 +52,12 @@ Within a generation, the `Variant` bits decide which fields exist:
 | `MPPT3` … `MPPT10` | PV strings beyond the two every model has |
 | `EPS` | the backup-output registers |
 | `DCB` | the dry-contact-box registers |
+| `APX` | the APX HV battery's own register bank |
+
+`EPS` and `DCB` are opted into (`detect(read_eps=True)`). `APX` is detected: a
+Gen4 hybrid reads the BMS type the inverter reports and only then polls the 29
+blocks the APX bank spans, because a hybrid with an LG or ARK pack refuses every
+one of them. `detect(read_apx=True)` forces it on for a device that misreports.
 
 ## Use
 
@@ -111,9 +117,24 @@ await inverter.hybrid_status.async_update()  # just the live measurements
 unsub = inverter.hybrid_status.add_update_listener(refresh_my_entity)
 ```
 
-`inverter.async_update()` refreshes everything in one pooled set of block reads
-— 2 requests for an SPF, 20 for an SPH, 54 for a MIN TL-XH with an APX battery,
-none wider than the 100 registers the inverter answers.
+`inverter.async_update()` refreshes each of them in turn — 2 requests for an
+SPF, 20 for an SPH, 25 for a MIN TL-XH and 54 with an APX battery, none wider
+than the 100 registers the inverter answers.
+
+### Partial updates
+
+A poll reads each sub-system independently, the way the integration reads its
+blocks: one slow or refused block does not take the rest of the poll with it.
+`async_update()` returns an `UpdateReport` — a failed component keeps its
+previous values, does not notify its listeners, and is listed by attribute name
+with its error, while every other component refreshes and notifies once the
+whole poll is done. Only a dead link (`ModbusConnectionError`) raises:
+
+```python
+report = await inverter.async_update()
+for name, error in report.failed.items():
+    print(f"{name} kept its previous values: {error}")
+```
 
 ## Connection
 

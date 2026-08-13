@@ -134,10 +134,10 @@ async def test_apx_module_readings_decode_their_split_range(mock_modbus_unit) ->
     mock_modbus_unit.input[5125] = 65536 - 900  # combined power, charging
     mock_modbus_unit.input[5124] = 1500  # combined current, discharging
 
-    inverter = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1)
+    inverter = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1 | Variant.APX)
     await inverter.async_update()
 
-    battery = inverter.battery_status
+    battery = inverter.battery_module_status
     assert battery is not None
     assert battery.bms_1_module_2_status == "Charging"
     assert battery.bms_1_module_2_soc == 93

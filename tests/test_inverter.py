@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from growatt_modbus import Gen4Inverter, Variant, build
+from growatt_modbus import Gen4Inverter, GrowattComponent, Variant, build
 
 SPF = Variant.SPF | Variant.HYBRID | Variant.X1
 GEN2 = Variant.GEN2 | Variant.PV | Variant.X3
@@ -142,7 +142,10 @@ async def test_a_device_object_refuses_the_wrong_generation(mock_modbus_unit) ->
         Gen4Inverter(mock_modbus_unit, GEN3)
 
 
-async def test_every_component_belongs_to_the_polled_group(inverter) -> None:  # type: ignore[no-untyped-def]
-    # Nothing is built and then left unpolled.
-    assert inverter.components
-    assert all(c.active_fields for c in inverter.components)
+async def test_no_built_component_is_left_out_of_the_poll(inverter) -> None:  # type: ignore[no-untyped-def]
+    # A sub-system built in _build but missing from POLLED would never be read,
+    # and would fail silently: its fields would just stay None forever.
+    report = await inverter.async_update()
+    built = {name for name, value in vars(inverter).items() if isinstance(value, GrowattComponent)}
+    assert built == report.updated
+    assert all(getattr(inverter, name).active_fields for name in built)

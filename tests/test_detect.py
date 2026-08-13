@@ -71,9 +71,10 @@ async def test_optional_hardware_is_opted_into(mock_modbus_unit) -> None:  # typ
     plain = await detect(mock_modbus_unit)
     assert Variant.EPS not in plain.variant
 
-    with_extras = await detect(mock_modbus_unit, read_eps=True, read_dcb=True)
+    with_extras = await detect(mock_modbus_unit, read_eps=True, read_dcb=True, read_apx=True)
     assert Variant.EPS in with_extras.variant
     assert Variant.DCB in with_extras.variant
+    assert Variant.APX in with_extras.variant
     assert with_extras.hybrid_settings is not None
     assert "eps_switch" in with_extras.hybrid_settings.active_fields
 

@@ -347,7 +347,7 @@ class Gen4HybridSettings(GrowattComponent):
 
 
 class Gen4BatterySettings(GrowattComponent):
-    """APX battery pack and module identity."""
+    """APX battery pack identity."""
 
     bms_1_monitoring_version = string(5011, 2)
     """BMS 1 Monitoring Version."""
@@ -357,6 +357,21 @@ class Gen4BatterySettings(GrowattComponent):
 
     bms_2_monitoring_version = string(5051, 2)
     """BMS 2 Monitoring Version."""
+
+    FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
+        "bms_1_monitoring_version": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_monitoring_version": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+    }
+
+
+class Gen4BatteryModuleSettings(GrowattComponent):
+    """APX battery per-module identity.
+
+    Split from the pack registers above: the module banks are separate islands
+    at a stride of 40, and a pack with fewer modules than the map declares
+    refuses the ones it does not have.
+    """
 
     bms_1_module_1_serialnumber = string(5400, 8)
     """BMS 1 Module 1 Serial Number."""
@@ -425,31 +440,28 @@ class Gen4BatterySettings(GrowattComponent):
     """BMS 1 Module 1 Charge Cycles."""
 
     FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
-        "bms_1_monitoring_version": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_monitoring_version": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_charge_cycles": Variant.GEN4 | Variant.HYBRID,
+        "bms_1_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_1_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
     }
 
 
@@ -912,7 +924,7 @@ class Gen4HybridStatus(GrowattComponent):
 
 
 class Gen4BatteryStatus(GrowattComponent):
-    """APX battery pack and per-module measurements."""
+    """APX battery pack measurements."""
 
     register_space = "input"
 
@@ -969,6 +981,49 @@ class Gen4BatteryStatus(GrowattComponent):
 
     bms_2_awake_modules = gauge(4186, 0.02, signed=True)
     """BMS 2 Awake Modules."""
+
+    bms_1_toe = gauge(5769, 0.1, signed=False, unit="kWh")
+    """BMS 1 Total Output Energy."""
+
+    bms_1_soc = integer(5777, signed=False)
+    """BMS 1 SoC."""
+
+    bms_1_soh = integer(5778, signed=False)
+    """BMS 1 SoH."""
+
+    bms_2_toe = gauge(5869, 0.1, signed=False, unit="kWh")
+    """BMS 2 Total Output Energy."""
+
+    bms_2_soc = integer(5877, signed=False)
+    """BMS 2 SoC."""
+
+    bms_2_soh = integer(5878, signed=False)
+    """BMS 2 SoH."""
+
+    FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
+        "bms_1_temp_a": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_temp_b": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_count": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_awake_modules": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_temp_a": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_temp_b": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_count": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_awake_modules": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+    }
+
+
+class Gen4BatteryModuleStatus(GrowattComponent):
+    """APX battery per-module measurements."""
+
+    register_space = "input"
 
     bms_1_module_1_soc = bits(5081, 0, 8, unit="%")
     """Bms 1 Module 1 Soc."""
@@ -1306,151 +1361,117 @@ class Gen4BatteryStatus(GrowattComponent):
     bms_2_module_6_charge_cycles = integer(5548, signed=False)
     """BMS 2 Module 6 Charge Cycles."""
 
-    bms_1_toe = gauge(5769, 0.1, signed=False, unit="kWh")
-    """BMS 1 Total Output Energy."""
-
-    bms_1_soc = integer(5777, signed=False)
-    """BMS 1 SoC."""
-
-    bms_1_soh = integer(5778, signed=False)
-    """BMS 1 SoH."""
-
-    bms_2_toe = gauge(5869, 0.1, signed=False, unit="kWh")
-    """BMS 2 Total Output Energy."""
-
-    bms_2_soc = integer(5877, signed=False)
-    """BMS 2 SoC."""
-
-    bms_2_soh = integer(5878, signed=False)
-    """BMS 2 SoH."""
-
     FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
-        "bms_1_temp_a": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_temp_b": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_count": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_awake_modules": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_temp_a": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_temp_b": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_count": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_awake_modules": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_1_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_2_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_3_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_4_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_5_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_module_6_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_max_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_min_cell_temp": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_1_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_2_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_3_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_4_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_5_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_status": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_volt": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_combined_current": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_combined_power": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_warning_text": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_module_6_charge_cycles": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_1_soh": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_toe": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_soc": Variant.GEN4 | Variant.HYBRID,
-        "bms_2_soh": Variant.GEN4 | Variant.HYBRID,
+        "bms_1_module_1_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_max_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_min_cell_temp": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_soc": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_combined_current": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_combined_power": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_toe": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_warning_text": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_charge_cycles": Variant.GEN4 | Variant.HYBRID | Variant.APX,
     }

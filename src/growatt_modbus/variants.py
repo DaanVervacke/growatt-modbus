@@ -6,7 +6,7 @@ faithful port of that scheme: :class:`Variant` carries the same bits, and
 :func:`matches` the same predicate, so a field that exists only on some
 generations is never read on the others.
 
-The bits fall into six independent groups. Within a group the bits of a mask are
+The bits fall into seven independent groups. Within a group the bits of a mask are
 OR-ed; between groups the results are AND-ed. A mask with no bits in a group
 places no constraint from that group.
 """
@@ -53,6 +53,8 @@ class Variant(IntFlag):
     """Emergency power supply / backup output installed."""
     DCB = 0x10000
     """Dry contact box installed."""
+    APX = 0x20000
+    """APX HV battery attached (BMS type 2), which brings its own register bank."""
 
     # MPPT count above the two every model has.
     MPPT3 = 0x40000
@@ -67,6 +69,7 @@ ALL_X_GROUP: Final = Variant.X1 | Variant.X3
 ALL_TYPE_GROUP: Final = Variant.PV | Variant.AC | Variant.HYBRID | Variant.MIC
 ALL_EPS_GROUP: Final = Variant.EPS
 ALL_DCB_GROUP: Final = Variant.DCB
+ALL_APX_GROUP: Final = Variant.APX
 ALL_MPPT_GROUP: Final = (
     Variant.MPPT3 | Variant.MPPT4 | Variant.MPPT6 | Variant.MPPT8 | Variant.MPPT10
 )
@@ -77,8 +80,14 @@ _GROUPS: Final = (
     ALL_TYPE_GROUP,
     ALL_EPS_GROUP,
     ALL_DCB_GROUP,
+    ALL_APX_GROUP,
     ALL_MPPT_GROUP,
 )
+
+# Holding register carrying the attached battery's BMS type, and the code that
+# means an APX HV pack. Probed at setup to decide whether Variant.APX applies.
+BMS_TYPE_REGISTER: Final = 700
+BMS_TYPE_APX: Final = 2
 
 
 def matches(inverter: Variant, field_mask: Variant) -> bool:

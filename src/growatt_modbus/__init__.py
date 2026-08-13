@@ -12,8 +12,12 @@ Growatt's five generations are five different register maps — the same address
 means different things on an SPF and on a MIN TL-XH — so each has its own
 device class and its own components. Within a generation the fields a model
 actually serves are selected from its :class:`Variant` bits (phase count, PV /
-AC / hybrid, MPPT count, backup output), so a poll never reads a register the
-inverter does not have.
+AC / hybrid, MPPT count, backup output, APX battery), so a poll never reads a
+register the inverter does not have.
+
+Each component is polled on its own, so one refused block cannot blank the
+device: :meth:`GrowattInverter.async_update` returns an :class:`UpdateReport`
+naming what refreshed and what kept its previous values.
 
 ASCII framing over TCP is not supported.
 """
@@ -38,6 +42,8 @@ from .gen3 import (
     Gen3VppSettings,
 )
 from .gen4 import (
+    Gen4BatteryModuleSettings,
+    Gen4BatteryModuleStatus,
     Gen4BatterySettings,
     Gen4BatteryStatus,
     Gen4HybridSettings,
@@ -53,6 +59,7 @@ from .inverter import (
     Gen4Inverter,
     GrowattInverter,
     SpfInverter,
+    UpdateReport,
     build,
     detect,
 )
@@ -87,6 +94,8 @@ __all__ = [
     "Gen3StorageSettings",
     "Gen3StorageStatus",
     "Gen3VppSettings",
+    "Gen4BatteryModuleSettings",
+    "Gen4BatteryModuleStatus",
     "Gen4BatterySettings",
     "Gen4BatteryStatus",
     "Gen4HybridSettings",
@@ -100,6 +109,7 @@ __all__ = [
     "SpfInverter",
     "SpfSettings",
     "SpfStatus",
+    "UpdateReport",
     "Variant",
     "build",
     "detect",

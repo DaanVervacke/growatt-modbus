@@ -20,6 +20,7 @@ VARIANTS: dict[str, Variant] = {
     "gen4_x1_hybrid": Variant.GEN4 | Variant.HYBRID | Variant.X1,
     "gen4_x3_hybrid": Variant.GEN4 | Variant.HYBRID | Variant.X3,
     "gen4_x1_hybrid_mppt4": (Variant.GEN4 | Variant.HYBRID | Variant.X1 | Variant.MPPT4),
+    "gen4_x3_hybrid_apx": (Variant.GEN4 | Variant.HYBRID | Variant.X3 | Variant.APX),
     "gen4_x1_pv": Variant.GEN4 | Variant.PV | Variant.X1,
     "spf_x1_hybrid": Variant.SPF | Variant.HYBRID | Variant.X1,
 }

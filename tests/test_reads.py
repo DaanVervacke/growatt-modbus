@@ -11,7 +11,7 @@ import pytest
 from modbus_connection.mock import MockModbusUnit
 from modbus_connection.model.fields import CoilField, DiscreteInputField
 
-from growatt_modbus import Variant, build
+from growatt_modbus import UpdateReport, Variant, build
 from growatt_modbus.fields import MAX_READ_SPAN
 from growatt_modbus.inverter import GrowattInverter
 
@@ -26,10 +26,11 @@ def _covered(unit: MockModbusUnit) -> dict[str, set[int]]:
     return covered
 
 
-def _wanted(inverter: GrowattInverter) -> dict[str, set[int]]:
-    """Every address the inverter's active fields sit on, per register space."""
+def _wanted(inverter: GrowattInverter, report: UpdateReport) -> dict[str, set[int]]:
+    """Every address the polled components' active fields sit on, per space."""
     wanted: dict[str, set[int]] = {}
-    for component in inverter.components:
+    for polled in report.updated:
+        component = getattr(inverter, polled)
         space = component.register_space
         for name in component.active_fields:
             field = component.declared_fields[name]
@@ -40,9 +41,16 @@ def _wanted(inverter: GrowattInverter) -> dict[str, set[int]]:
     return wanted
 
 
-async def test_a_poll_reads_every_field_it_declares(inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+async def _poll(inverter: GrowattInverter, unit: MockModbusUnit) -> UpdateReport:
+    """Run a second poll, so setup's one-off APX probe is not in the events."""
     await inverter.async_update()
-    covered, wanted = _covered(mock_modbus_unit), _wanted(inverter)
+    unit.read_events.clear()
+    return await inverter.async_update()
+
+
+async def test_a_poll_reads_every_field_it_declares(inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+    report = await _poll(inverter, mock_modbus_unit)
+    covered, wanted = _covered(mock_modbus_unit), _wanted(inverter, report)
     for space, addresses in wanted.items():
         missing = addresses - covered.get(space, set())
         assert not missing, f"{space}: {sorted(missing)[:10]} never read"
@@ -51,13 +59,16 @@ async def test_a_poll_reads_every_field_it_declares(inverter, mock_modbus_unit) 
 async def test_no_request_is_wider_than_the_inverter_answers(  # type: ignore[no-untyped-def]
     inverter, mock_modbus_unit
 ) -> None:
-    await inverter.async_update()
+    await _poll(inverter, mock_modbus_unit)
     assert mock_modbus_unit.read_events
     assert all(e.count <= MAX_READ_SPAN for e in mock_modbus_unit.read_events)
 
 
 async def test_requests_do_not_overlap(inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
-    await inverter.async_update()
+    # Components plan their reads separately now, so nothing forces them apart;
+    # they still land on disjoint blocks, and a poll that started re-reading a
+    # register would be paying for it every cycle.
+    await _poll(inverter, mock_modbus_unit)
     seen: dict[str, set[int]] = {}
     for event in mock_modbus_unit.read_events:
         block = set(range(event.address, event.address + event.count))
@@ -70,13 +81,13 @@ async def test_only_holding_and_input_registers_are_read(  # type: ignore[no-unt
     inverter, mock_modbus_unit
 ) -> None:
     # This device has no coils or discrete inputs; booleans are packed in registers.
-    await inverter.async_update()
+    await _poll(inverter, mock_modbus_unit)
     spaces = {e.register_type for e in mock_modbus_unit.read_events}
     assert spaces <= {"holding", "input"}
 
 
 async def test_a_second_poll_issues_the_same_requests(inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
-    await inverter.async_update()
+    await _poll(inverter, mock_modbus_unit)
     first = list(mock_modbus_unit.read_events)
     mock_modbus_unit.read_events.clear()
     await inverter.async_update()
@@ -91,12 +102,12 @@ class TestVariantNarrowsThePoll:
     ) -> None:
         # PV3 lives at input 3011-3013 and exists only from three MPPTs up.
         two = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1)
-        await two.async_update()
+        await _poll(two, mock_modbus_unit)
         assert not _covered(mock_modbus_unit).get("input", set()) & {3011, 3012, 3013}
 
         mock_modbus_unit.read_events.clear()
         three = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1 | Variant.MPPT3)
-        await three.async_update()
+        await _poll(three, mock_modbus_unit)
         assert {3011, 3012, 3013} <= _covered(mock_modbus_unit)["input"]
 
     async def test_a_single_phase_gen3_never_reads_the_other_two_phases(  # type: ignore[no-untyped-def]
@@ -117,12 +128,12 @@ class TestVariantNarrowsThePoll:
     ) -> None:
         # The Gen4 EPS switch sits at holding 3079.
         plain = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1)
-        await plain.async_update()
+        await _poll(plain, mock_modbus_unit)
         assert 3079 not in _covered(mock_modbus_unit).get("holding", set())
 
         mock_modbus_unit.read_events.clear()
         with_eps = build(mock_modbus_unit, Variant.GEN4 | Variant.HYBRID | Variant.X1 | Variant.EPS)
-        await with_eps.async_update()
+        await _poll(with_eps, mock_modbus_unit)
         assert 3079 in _covered(mock_modbus_unit)["holding"]
 
     async def test_a_single_mppt_spf_never_reads_its_second_string(  # type: ignore[no-untyped-def]
@@ -142,8 +153,16 @@ class TestVariantNarrowsThePoll:
         assert {2, 5, 6, 8, 54, 55} <= _covered(mock_modbus_unit)["input"]
 
 
-# Measured request counts, as a regression pin on the read plan. A change here
-# means the map or the planner moved; check it is intended before updating.
+# Measured request counts for a steady-state poll, as a regression pin on the
+# read plan. A change here means the map or the planner moved; check it is
+# intended before updating.
+#
+# Polling per component rather than through one pooled group cost nothing: every
+# count below is what the pooled group issued. The Gen4 hybrids dropped 29 —
+# the APX battery blocks, which are now gated on Variant.APX instead of being
+# read on every hybrid. gen4_x3_hybrid_apx is the old gen4_x3_hybrid figure, so
+# splitting the two APX components into four did not add a request either: the
+# pack/module boundary already fell between blocks.
 EXPECTED_REQUESTS = {
     "gen1_x1_pv": 4,
     "gen1_x3_pv": 3,
@@ -152,10 +171,11 @@ EXPECTED_REQUESTS = {
     "gen3_x1_hybrid": 20,
     "gen3_x3_hybrid": 17,
     "gen3_x3_hybrid_mppt8": 15,
-    "gen4_x1_hybrid": 54,
-    "gen4_x1_hybrid_mppt4": 51,
+    "gen4_x1_hybrid": 25,
+    "gen4_x1_hybrid_mppt4": 22,
     "gen4_x1_pv": 19,
-    "gen4_x3_hybrid": 53,
+    "gen4_x3_hybrid": 24,
+    "gen4_x3_hybrid_apx": 53,
     "spf_x1_hybrid": 2,
 }
 
@@ -165,5 +185,28 @@ async def test_request_count_is_pinned(mock_modbus_unit, name: str) -> None:  # 
     from .conftest import VARIANTS
 
     inverter = build(mock_modbus_unit, VARIANTS[name])
-    await inverter.async_update()
+    await _poll(inverter, mock_modbus_unit)
     assert len(mock_modbus_unit.read_events) == EXPECTED_REQUESTS[name]
+
+
+async def test_the_apx_blocks_are_the_whole_difference(mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+    """The 29 blocks a non-APX hybrid no longer polls are exactly the APX ones."""
+    from .conftest import VARIANTS
+
+    with_apx = build(mock_modbus_unit, VARIANTS["gen4_x3_hybrid_apx"])
+    report = await _poll(with_apx, mock_modbus_unit)
+    apx = {
+        "battery_settings",
+        "battery_module_settings",
+        "battery_status",
+        "battery_module_status",
+    }
+    assert apx <= report.updated
+
+    blocks = 0
+    for name in apx:
+        mock_modbus_unit.read_events.clear()
+        await getattr(with_apx, name).async_update(notify=False)
+        blocks += len(mock_modbus_unit.read_events)
+    assert blocks == 29
+    assert EXPECTED_REQUESTS["gen4_x3_hybrid_apx"] - EXPECTED_REQUESTS["gen4_x3_hybrid"] == 29
