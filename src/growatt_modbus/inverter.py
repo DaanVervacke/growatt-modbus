@@ -154,17 +154,34 @@ class GrowattInverter:
         """Refresh, and additionally return the raw register words read.
 
         A diagnostic dump rather than a poll: it stops at the first refusal,
-        because there the error is the interesting part.
+        because there the error is the interesting part. The identifier
+        registers :func:`detect` reads are included — a poll never touches them,
+        and they are the first thing an issue report is read for.
         """
         if self._polled is None:
             await self.async_setup()
         assert self._polled is not None  # async_setup() builds it
-        raw: dict[str, dict[int, int | bool]] = {}
+        raw: dict[str, dict[int, int | bool]] = {"holding": await self._read_identity()}
         for name in self._polled:
             component: GrowattComponent = getattr(self, name)
             for space, values in (await component.async_read_raw()).items():
                 raw.setdefault(space, {}).update(values)
-        return {space: dict(sorted(values.items())) for space, values in raw.items()}
+        return {space: dict(sorted(values.items())) for space, values in raw.items() if values}
+
+    async def _read_identity(self) -> dict[int, int | bool]:
+        """The identifier words :func:`detect` probes, skipping refused addresses.
+
+        An inverter serves one of the candidate addresses and refuses the rest,
+        so unlike in a component read a refusal here is ordinary.
+        """
+        words: dict[int, int | bool] = {}
+        for address in (*SERIAL_NUMBER_REGISTERS, FIRMWARE_REGISTER):
+            try:
+                read = await self.unit.read_holding_registers(address, _IDENTIFIER_WORDS)
+            except (IllegalDataAddressError, IllegalFunctionError):
+                continue
+            words.update(enumerate(read, address))
+        return words
 
     @property
     def firmware_control_version(self) -> str | None:

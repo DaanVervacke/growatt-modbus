@@ -8,12 +8,14 @@ before pinning the resulting request counts.
 from __future__ import annotations
 
 import pytest
+from modbus_connection import IllegalDataAddressError
 from modbus_connection.mock import MockModbusUnit
 from modbus_connection.model.fields import CoilField, DiscreteInputField
 
 from growatt_modbus import UpdateReport, Variant, build
 from growatt_modbus.fields import MAX_READ_SPAN
-from growatt_modbus.inverter import GrowattInverter
+from growatt_modbus.inverter import _IDENTIFIER_WORDS, GrowattInverter
+from growatt_modbus.variants import FIRMWARE_REGISTER, SERIAL_NUMBER_REGISTERS
 
 
 def _covered(unit: MockModbusUnit) -> dict[str, set[int]]:
@@ -210,3 +212,33 @@ async def test_the_apx_blocks_are_the_whole_difference(mock_modbus_unit) -> None
         blocks += len(mock_modbus_unit.read_events)
     assert blocks == 29
     assert EXPECTED_REQUESTS["gen4_x3_hybrid_apx"] - EXPECTED_REQUESTS["gen4_x3_hybrid"] == 29
+
+
+class TestRawDump:
+    """A diagnostics dump has to carry more than the poll list.
+
+    The identifier registers are read once at detection and never polled, which
+    makes them exactly what is missing from an issue report that only walks the
+    polled components.
+    """
+
+    async def test_it_includes_the_identifier_registers(self, inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+        holding = set((await inverter.async_read_raw())["holding"])
+        for address in (*SERIAL_NUMBER_REGISTERS, FIRMWARE_REGISTER):
+            words = set(range(address, address + _IDENTIFIER_WORDS))
+            assert words <= holding, f"identifier at {address} missing from the dump"
+
+    async def test_it_includes_everything_a_poll_reads(self, inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+        report = await inverter.async_update()
+        raw = await inverter.async_read_raw()
+        for space, addresses in _wanted(inverter, report).items():
+            assert addresses <= set(raw[space])
+
+    async def test_a_refused_identifier_address_does_not_stop_it(  # type: ignore[no-untyped-def]
+        self, inverter, mock_modbus_unit
+    ) -> None:
+        # 209 is served by no inverter the library builds, so only the dump's
+        # own probe reaches it.
+        mock_modbus_unit.fail_read(209, IllegalDataAddressError())
+        holding = set((await inverter.async_read_raw())["holding"])
+        assert set(range(FIRMWARE_REGISTER, FIRMWARE_REGISTER + _IDENTIFIER_WORDS)) <= holding
