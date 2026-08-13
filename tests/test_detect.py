@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from modbus_connection import IllegalDataAddressError
+from modbus_connection import (
+    IllegalDataAddressError,
+    ModbusConnectionError,
+    ModbusTimeoutError,
+    ServerDeviceBusyError,
+)
 
 from growatt_modbus import Gen3Inverter, Gen4Inverter, SpfInverter, Variant, detect
 
@@ -63,6 +68,43 @@ async def test_an_unrecognised_inverter_is_reported(mock_modbus_unit) -> None:  
     _seed_string(mock_modbus_unit, 23, "ZZZ9999999")
     with pytest.raises(LookupError, match="unrecognised"):
         await detect(mock_modbus_unit)
+
+
+class TestATransientProbeIsNotAVerdict:
+    """A slow or busy inverter is unidentified for now, never unrecognised."""
+
+    async def test_a_timed_out_address_does_not_stop_the_remaining_ones(  # type: ignore[no-untyped-def]
+        self, mock_modbus_unit
+    ) -> None:
+        # 3001 is probed first; the serial actually lives at 23.
+        mock_modbus_unit.fail_read(3001, ModbusTimeoutError("slow"))
+        _seed_string(mock_modbus_unit, 23, "YRP0000001")
+        inverter = await detect(mock_modbus_unit)
+        assert isinstance(inverter, Gen3Inverter)
+
+    async def test_a_device_that_never_answered_raises_the_read_error(  # type: ignore[no-untyped-def]
+        self, mock_modbus_unit
+    ) -> None:
+        # LookupError here would be a permanent verdict on a device that is
+        # merely slow, and callers treat it as "stop trying".
+        for address in (3001, 209, 23, 9):
+            mock_modbus_unit.fail_read(address, ModbusTimeoutError("slow"))
+        with pytest.raises(ModbusTimeoutError):
+            await detect(mock_modbus_unit)
+
+    async def test_a_busy_answer_is_not_read_as_an_empty_address(  # type: ignore[no-untyped-def]
+        self, mock_modbus_unit
+    ) -> None:
+        for address in (3001, 209, 23, 9):
+            mock_modbus_unit.fail_read(address, ServerDeviceBusyError())
+        with pytest.raises(ServerDeviceBusyError):
+            await detect(mock_modbus_unit)
+
+    async def test_a_dead_link_raises_at_the_first_address(self, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+        mock_modbus_unit.fail_requests(ModbusConnectionError("link down"))
+        with pytest.raises(ModbusConnectionError):
+            await detect(mock_modbus_unit)
+        assert len(mock_modbus_unit.read_events) == 1
 
 
 async def test_optional_hardware_is_opted_into(mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]

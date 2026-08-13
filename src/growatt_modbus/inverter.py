@@ -16,7 +16,6 @@ from modbus_connection import (
     IllegalFunctionError,
     ModbusConnectionError,
     ModbusError,
-    ModbusExceptionError,
 )
 
 from .enums import INVERTER_FAULT, INVERTER_WARNING
@@ -410,26 +409,31 @@ async def detect(
     APX battery registers on; left off, a Gen4 hybrid detects the pack itself
     at :meth:`GrowattInverter.async_setup`.
 
-    Raises ``LookupError`` if no prefix identifies the inverter.
+    Raises ``LookupError`` if no prefix identifies the inverter, and the
+    underlying error if one of the probes failed transiently — a device that
+    timed out is unidentified for now, not unrecognised for good.
     """
     identifier: str | None = None
     variant: Variant | None = None
+    failures: list[ModbusError] = []
 
     for address in SERIAL_NUMBER_REGISTERS:
-        candidate = await _read_identifier(unit, address)
+        candidate = await _probe_identifier(unit, address, failures)
         found = variant_from_identifier(candidate, SERIAL_PREFIX_VARIANTS)
         if found is not None:
             identifier, variant = candidate, found
             break
 
     if variant is None:
-        firmware = await _read_identifier(unit, FIRMWARE_REGISTER)
+        firmware = await _probe_identifier(unit, FIRMWARE_REGISTER, failures)
         variant = variant_from_identifier(firmware, FIRMWARE_PREFIX_VARIANTS)
         if variant is None:
             # Some older models expose a model prefix only at the firmware register.
             variant = variant_from_identifier(firmware, SERIAL_PREFIX_VARIANTS)
         identifier = firmware
         if variant is None:
+            if failures:
+                raise failures[0]
             raise LookupError(f"unrecognised Growatt inverter (identifier {identifier or '?'})")
 
     if read_eps:
@@ -446,11 +450,31 @@ async def detect(
 _IDENTIFIER_WORDS = 5
 
 
+async def _probe_identifier(
+    unit: ModbusUnit, address: int, failures: list[ModbusError]
+) -> str | None:
+    """Read an identifier, collecting a transient failure rather than raising it.
+
+    One slow address must not stop the remaining ones being tried; ``detect``
+    re-raises what was collected if nothing identified the inverter.
+    """
+    try:
+        return await _read_identifier(unit, address)
+    except ModbusConnectionError:
+        raise
+    except ModbusError as err:
+        failures.append(err)
+        return None
+
+
 async def _read_identifier(unit: ModbusUnit, address: int) -> str | None:
-    """Read an identifier string, or None if the inverter has none there."""
+    """Read an identifier string, or None if the inverter has none there.
+
+    Only a refusal means the address is unserved; every other error propagates.
+    """
     try:
         registers = await unit.read_holding_registers(address, _IDENTIFIER_WORDS)
-    except ModbusExceptionError:
+    except (IllegalDataAddressError, IllegalFunctionError):
         return None
     raw = b"".join(word.to_bytes(2, "big") for word in registers)
     return raw.decode("ascii", errors="ignore").rstrip("\x00").strip() or None
