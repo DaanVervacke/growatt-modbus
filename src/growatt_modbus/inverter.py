@@ -156,7 +156,8 @@ class GrowattInverter:
         A diagnostic dump rather than a poll: it stops at the first refusal,
         because there the error is the interesting part. The identifier
         registers :func:`detect` reads are included — a poll never touches them,
-        and they are the first thing an issue report is read for.
+        and they are the first thing an issue report is read for. The components
+        refresh but do not notify, so a download is not seen as a poll.
         """
         if self._polled is None:
             await self.async_setup()
@@ -164,7 +165,7 @@ class GrowattInverter:
         raw: dict[str, dict[int, int | bool]] = {"holding": await self._read_identity()}
         for name in self._polled:
             component: GrowattComponent = getattr(self, name)
-            for space, values in (await component.async_read_raw()).items():
+            for space, values in (await component.async_read_raw(notify=False)).items():
                 raw.setdefault(space, {}).update(values)
         return {space: dict(sorted(values.items())) for space, values in raw.items() if values}
 

@@ -7,6 +7,8 @@ before pinning the resulting request counts.
 
 from __future__ import annotations
 
+from functools import partial
+
 import pytest
 from modbus_connection import IllegalDataAddressError
 from modbus_connection.mock import MockModbusUnit
@@ -164,7 +166,9 @@ class TestVariantNarrowsThePoll:
 # the APX battery blocks, which are now gated on Variant.APX instead of being
 # read on every hybrid. gen4_x3_hybrid_apx is the old gen4_x3_hybrid figure, so
 # splitting the two APX components into four did not add a request either: the
-# pack/module boundary already fell between blocks.
+# pack/module boundary already fell between blocks. battery_status brackets
+# battery_module_status (4019-5878 over 5081-5548) but reads none of its
+# addresses, so pooling even that pair still issues the same 14 requests.
 EXPECTED_REQUESTS = {
     "gen1_x1_pv": 4,
     "gen1_x3_pv": 3,
@@ -233,6 +237,19 @@ class TestRawDump:
         raw = await inverter.async_read_raw()
         for space, addresses in _wanted(inverter, report).items():
             assert addresses <= set(raw[space])
+
+    async def test_it_does_not_notify(self, inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+        # A download refreshes the components, but must not look like a poll to
+        # whoever is listening — the fields are current either way.
+        await inverter.async_update()
+        fired: list[str] = []
+        for name in inverter.POLLED:
+            component = getattr(inverter, name)
+            if component is not None:
+                component.add_update_listener(partial(fired.append, name))
+
+        await inverter.async_read_raw()
+        assert not fired
 
     async def test_a_refused_identifier_address_does_not_stop_it(  # type: ignore[no-untyped-def]
         self, inverter, mock_modbus_unit
