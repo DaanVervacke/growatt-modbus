@@ -4,6 +4,9 @@ The upstream integration reads its blocks independently and tolerates a failure
 (``auto_block_ignore_readerror=True``): the failing block's sensors keep their
 last values while everything else refreshes. The library mirrors that at
 component granularity.
+
+The exception is an inverter that has answered nothing at all: there a timeout
+raises rather than being contained, so one silent poll costs one timeout.
 """
 
 from __future__ import annotations
@@ -81,6 +84,38 @@ async def test_a_dead_link_raises_instead_of_reporting(
     mock_modbus_unit.fail_requests(ModbusConnectionError("link down"))
     with pytest.raises(ModbusConnectionError):
         await hybrid.async_update()
+
+
+async def test_a_silent_inverter_raises_after_one_timeout_not_nine(
+    hybrid: Gen4Inverter, mock_modbus_unit: MockModbusUnit
+) -> None:
+    """An inverter asleep behind a bridge that keeps the socket open.
+
+    Nothing answered, so the remaining components would only pay a timeout each.
+    """
+    await hybrid.async_update()
+    assert hybrid.POLLED[0] == "settings"
+    mock_modbus_unit.fail_requests(ModbusTimeoutError("asleep"))
+    mock_modbus_unit.read_events.clear()
+
+    with pytest.raises(ModbusTimeoutError):
+        await hybrid.async_update()
+    assert len(mock_modbus_unit.read_events) == 1
+
+
+async def test_a_refused_first_component_still_contains_a_later_timeout(
+    hybrid: Gen4Inverter, mock_modbus_unit: MockModbusUnit
+) -> None:
+    """A refusal is an answer: the inverter is there, so the poll goes on."""
+    await hybrid.async_update()
+    mock_modbus_unit.fail_read(700, IllegalDataAddressError())  # in settings' block
+    mock_modbus_unit.fail_read(
+        3169, ModbusTimeoutError("slow battery block"), register_type="input"
+    )
+    report = await hybrid.async_update()
+
+    assert {"settings", "hybrid_status"} <= set(report.failed)
+    assert "status" in report.updated
 
 
 async def test_every_component_refreshes_on_a_healthy_device(

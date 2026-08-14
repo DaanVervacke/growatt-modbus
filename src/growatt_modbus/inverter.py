@@ -16,6 +16,7 @@ from modbus_connection import (
     IllegalFunctionError,
     ModbusConnectionError,
     ModbusError,
+    ModbusTimeoutError,
 )
 
 from .enums import INVERTER_FAULT, INVERTER_WARNING
@@ -63,7 +64,8 @@ class UpdateReport:
 
     A failed component kept its previous values and did not notify; the error
     that failed it rides along. A dead link is never in here — the update
-    raises ``ModbusConnectionError`` instead of reporting partial silence.
+    raises ``ModbusConnectionError`` instead of reporting partial silence, and
+    likewise ``ModbusTimeoutError`` when the inverter answered nothing at all.
     """
 
     updated: set[str]
@@ -128,7 +130,9 @@ class GrowattInverter:
         blocks: a sub-system whose read fails keeps its previous values while
         the rest still refresh. Listeners fire only after every component has
         been tried, and only on the ones that refreshed. A failure of the link
-        itself raises ``ModbusConnectionError`` instead of reporting.
+        itself raises ``ModbusConnectionError`` instead of reporting, and a
+        timeout on the first component raises too: nothing answered, so walking
+        the rest would only pay a timeout each.
         """
         if self._polled is None:
             await self.async_setup()
@@ -141,6 +145,10 @@ class GrowattInverter:
                 await component.async_update(notify=False)
             except ModbusConnectionError:
                 raise
+            except ModbusTimeoutError as err:
+                if not updated and not failed:
+                    raise  # the first component timed out: assume the rest do too
+                failed[name] = err
             except ModbusError as err:
                 failed[name] = err
             else:
