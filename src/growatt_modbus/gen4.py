@@ -370,7 +370,10 @@ class Gen4BatteryModuleSettings(GrowattComponent):
 
     Split from the pack registers above: the module banks are separate islands
     at a stride of 40, and a pack with fewer modules than the map declares
-    refuses the ones it does not have.
+    refuses the ones it does not have. Twelve islands means twelve requests —
+    a quarter of an APX hybrid's poll for values that never change, so module
+    1's measurements live in :class:`Gen4BatteryModule1Status` instead and a
+    caller may poll this on its own slow schedule.
     """
 
     bms_1_module_1_serialnumber = string(5400, 8)
@@ -409,6 +412,30 @@ class Gen4BatteryModuleSettings(GrowattComponent):
     bms_2_module_6_serialnumber = string(5840, 8)
     """BMS 2 Module 6 Serial Number."""
 
+    FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
+        "bms_1_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_1_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+        "bms_2_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
+    }
+
+
+class Gen4BatteryModule1Status(GrowattComponent):
+    """APX battery module 1 measurements.
+
+    The vendor map puts module 1's readings in holding registers while modules
+    2-12 report from input — a register space is per component, so they cannot
+    share one.
+    """
+
     bms_1_module_1_status = option(5880, MODULE_STATUS)
     """BMS 1 Module 1 Status."""
 
@@ -440,18 +467,6 @@ class Gen4BatteryModuleSettings(GrowattComponent):
     """BMS 1 Module 1 Charge Cycles."""
 
     FIELD_VARIANTS: ClassVar[dict[str, Variant]] = {
-        "bms_1_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_1_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_1_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_1_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_1_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_1_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_1_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_2_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_3_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_4_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_5_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
-        "bms_2_module_6_serialnumber": Variant.GEN4 | Variant.HYBRID | Variant.APX,
         "bms_1_module_1_status": Variant.GEN4 | Variant.HYBRID | Variant.APX,
         "bms_1_module_1_soh": Variant.GEN4 | Variant.HYBRID | Variant.APX,
         "bms_1_module_1_volt": Variant.GEN4 | Variant.HYBRID | Variant.APX,

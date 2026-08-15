@@ -165,8 +165,10 @@ class TestVariantNarrowsThePoll:
 # count below is what the pooled group issued. The Gen4 hybrids dropped 29 —
 # the APX battery blocks, which are now gated on Variant.APX instead of being
 # read on every hybrid. gen4_x3_hybrid_apx is the old gen4_x3_hybrid figure, so
-# splitting the two APX components into four did not add a request either: the
-# pack/module boundary already fell between blocks. battery_status brackets
+# splitting the two APX components into five did not add a request either: every
+# boundary fell between blocks already — the pack/module one, and module 1's
+# holding-register readings, 272 registers past the last serial number.
+# battery_status brackets
 # battery_module_status (4019-5878 over 5081-5548) but reads none of its
 # addresses, so pooling even that pair still issues the same 14 requests.
 EXPECTED_REQUESTS = {
@@ -206,6 +208,7 @@ async def test_the_apx_blocks_are_the_whole_difference(mock_modbus_unit) -> None
         "battery_module_settings",
         "battery_status",
         "battery_module_status",
+        "battery_module_1_status",
     }
     assert apx <= report.updated
 
@@ -216,6 +219,45 @@ async def test_the_apx_blocks_are_the_whole_difference(mock_modbus_unit) -> None
         blocks += len(mock_modbus_unit.read_events)
     assert blocks == 29
     assert EXPECTED_REQUESTS["gen4_x3_hybrid_apx"] - EXPECTED_REQUESTS["gen4_x3_hybrid"] == 29
+
+
+async def test_the_apx_module_serials_poll_apart_from_the_readings(mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+    """Module identity holds no live reading, so a caller may poll it slowly.
+
+    The twelve serial numbers are islands 40 apart, so each costs its own
+    request — 12 of this inverter's 53. A single live field among them would
+    pin all twelve to the fast poll.
+    """
+    from .conftest import VARIANTS
+
+    inverter = build(mock_modbus_unit, VARIANTS["gen4_x3_hybrid_apx"])
+    await _poll(inverter, mock_modbus_unit)
+
+    serials = inverter.battery_module_settings
+    readings = inverter.battery_module_1_status
+    assert serials is not None and readings is not None
+    assert all(name.endswith("_serialnumber") for name in serials.active_fields)
+    assert not any(name.endswith("_serialnumber") for name in readings.active_fields)
+
+    counts = []
+    for component in (serials, readings):
+        mock_modbus_unit.read_events.clear()
+        await component.async_update(notify=False)
+        counts.append(len(mock_modbus_unit.read_events))
+    assert counts == [12, 1]
+
+
+async def test_the_carved_module_identity_still_polls_and_does_not_lead(  # type: ignore[no-untyped-def]
+    mock_modbus_unit,
+) -> None:
+    # Splitting is the consumer's choice; async_update() still refreshes both,
+    # and the probe for the fatal-timeout rule stays the component it was.
+    from .conftest import VARIANTS
+
+    inverter = build(mock_modbus_unit, VARIANTS["gen4_x3_hybrid_apx"])
+    report = await _poll(inverter, mock_modbus_unit)
+    assert {"battery_module_settings", "battery_module_1_status"} <= report.updated
+    assert inverter.POLLED[0] == "settings"
 
 
 class TestRawDump:

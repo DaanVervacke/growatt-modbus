@@ -31,6 +31,7 @@ from .gen3 import (
     Gen3VppSettings,
 )
 from .gen4 import (
+    Gen4BatteryModule1Status,
     Gen4BatteryModuleSettings,
     Gen4BatteryModuleStatus,
     Gen4BatterySettings,
@@ -292,6 +293,7 @@ class Gen4Inverter(GrowattInverter):
         "battery_module_settings",
         "battery_status",
         "battery_module_status",
+        "battery_module_1_status",
         "vpp_settings",
     )
 
@@ -314,6 +316,7 @@ class Gen4Inverter(GrowattInverter):
         self.battery_module_settings = self._component(Gen4BatteryModuleSettings)
         self.battery_status = self._component(Gen4BatteryStatus)
         self.battery_module_status = self._component(Gen4BatteryModuleStatus)
+        self.battery_module_1_status = self._component(Gen4BatteryModule1Status)
 
     async def async_setup(self) -> None:
         """Probe for an APX battery, then settle what to poll.

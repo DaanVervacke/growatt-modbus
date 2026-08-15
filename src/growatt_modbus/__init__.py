@@ -42,6 +42,7 @@ from .gen3 import (
     Gen3VppSettings,
 )
 from .gen4 import (
+    Gen4BatteryModule1Status,
     Gen4BatteryModuleSettings,
     Gen4BatteryModuleStatus,
     Gen4BatterySettings,
@@ -94,6 +95,7 @@ __all__ = [
     "Gen3StorageSettings",
     "Gen3StorageStatus",
     "Gen3VppSettings",
+    "Gen4BatteryModule1Status",
     "Gen4BatteryModuleSettings",
     "Gen4BatteryModuleStatus",
     "Gen4BatterySettings",
