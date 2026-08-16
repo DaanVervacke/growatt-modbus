@@ -151,6 +151,22 @@ the `ModbusUnit` you give it.
 hand this library with `framer="ascii"`; the register semantics here assume RTU
 or socket framing, and ASCII-over-TCP is out of scope.
 
+## Checking a real inverter
+
+`script/query.py` identifies the inverter, reads it once and prints everything
+it has, which is the quickest way to see whether one is wired and addressed
+correctly:
+
+```bash
+uv run script/query.py /dev/ttyUSB0 --transport serial --unit 1
+uv run script/query.py 192.168.1.50 --transport tcp --unit 1 --framer rtu
+```
+
+It prints the detected variant and the read count as well, so what this inverter
+turned out to be — and how few requests its poll takes — is visible against real
+hardware rather than only in the tests. Add `--eps`, `--dcb` or `--apx` to bring
+in the register groups those options carry.
+
 ## Scope
 
 Every entity in the upstream Growatt plugin that carries register knowledge is
