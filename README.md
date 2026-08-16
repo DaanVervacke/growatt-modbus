@@ -159,7 +159,7 @@ correctly:
 
 ```bash
 uv run script/query.py /dev/ttyUSB0 --transport serial --unit 1
-uv run script/query.py 192.168.1.50 --transport tcp --unit 1 --framer rtu
+uv run script/query.py 192.168.1.50 --unit 1 --framer rtu
 ```
 
 It prints the detected variant and the read count as well, so what this inverter
