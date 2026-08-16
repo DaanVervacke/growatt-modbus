@@ -23,6 +23,10 @@ that project's licence and is a derived work of it.
   the subset at construction, via `restrict_fields`. This is not cosmetic: a
   Modbus block read is atomic, so one register the inverter does not serve would
   fail every field sharing its block.
+- **Status and settings refresh separately.** `async_update_status()` reads what
+  the inverter measures, `async_update_settings()` what it has been told to do,
+  and `async_update()` does both — so a consumer can put the configuration
+  registers on a slower schedule without reimplementing the poll.
 - **Settings are writable**, by the same names they are read under — a label for
   a mode, a `datetime.time` for a schedule slot, a number for a limit. Ranges
   are validated before anything reaches the inverter, and a setting packed into
@@ -121,18 +125,49 @@ unsub = inverter.hybrid_status.add_update_listener(refresh_my_entity)
 SPF, 20 for an SPH, 25 for a MIN TL-XH and 54 with an APX battery, none wider
 than the 100 registers the inverter answers.
 
+### Polling the settings apart from the readings
+
+The `*_status` components hold what the inverter measures; the `*_settings`
+components hold what it has been told to do, and change only when something
+writes them. Each group has its own method, so the settings can go on a slower
+schedule and be read back on demand after a write:
+
+```python
+await inverter.async_update_status()  # every cycle
+await inverter.async_update_settings()  # rarely, and after a write
+
+await inverter.hybrid_settings.write("ems_charging_rate", 80)
+await inverter.async_update_settings()  # read back what took effect
+```
+
+`async_update()` is unchanged: it does both, in one report.
+
+What that takes off the fast schedule is most of the poll's width — 1 request of
+an SPF's 2, 3 of a Gen2's 9, 7 of an SPH's 20, 11 of a MIN TL-XH's 25, and 25 of
+the 53 an APX hybrid issues (205 registers of its 838). The APX battery's fifteen
+serial numbers and monitoring versions ride with the settings: they change less
+often still, and twelve of them are islands 40 registers apart that cost a
+request each. Module 1's live readings are `battery_module_1_status` and stay on
+the fast side.
+
+Poll the settings at least once at startup even if the consumer only wants
+readings: `firmware_control_version` comes from `settings`, and
+`Gen4Inverter.battery_voltage` scales itself from a `hybrid_settings` field.
+
 ### Partial updates
 
 A poll reads each sub-system independently, the way the integration reads its
 blocks: one slow or refused block does not take the rest of the poll with it.
-`async_update()` returns an `UpdateReport` — a failed component keeps its
+Every update method returns an `UpdateReport` — a failed component keeps its
 previous values, does not notify its listeners, and is listed by attribute name
-with its error, while every other component refreshes and notifies once the
-whole poll is done. A dead link (`ModbusConnectionError`) raises, and so does a
-timeout on the very first component: nothing answered at all, so the inverter is
-asleep or unreachable and walking the rest would only pay a timeout each. Once
-any component has answered — refreshed *or* refused — a later timeout is
-contained like any other failure:
+with its error, while every other component refreshes and notifies once that
+poll is done. A report names only what the method it came from polled, and
+listeners fire at the end of the poll that read their component, so a settings
+poll does not hold up the readings. A dead link (`ModbusConnectionError`)
+raises, and so does a timeout on the very first component: nothing answered at
+all, so the inverter is asleep or unreachable and walking the rest would only
+pay a timeout each. Once any component has answered — refreshed *or* refused —
+a later timeout is contained like any other failure:
 
 ```python
 report = await inverter.async_update()

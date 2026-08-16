@@ -98,6 +98,28 @@ async def test_a_second_poll_issues_the_same_requests(inverter, mock_modbus_unit
     assert list(mock_modbus_unit.read_events) == first
 
 
+async def test_status_and_settings_poll_their_own_blocks(inverter, mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
+    """Neither method reads a register the other one owns.
+
+    Together they issue exactly the requests ``async_update()`` does, in the
+    same order: the split is where a poll is cut, not extra reads.
+    """
+    report = await _poll(inverter, mock_modbus_unit)
+    whole = list(mock_modbus_unit.read_events)
+
+    mock_modbus_unit.read_events.clear()
+    status = await inverter.async_update_status()
+    status_reads = list(mock_modbus_unit.read_events)
+
+    mock_modbus_unit.read_events.clear()
+    settings = await inverter.async_update_settings()
+
+    assert status_reads + list(mock_modbus_unit.read_events) == whole
+    assert status_reads
+    assert not status.updated & settings.updated
+    assert status.updated | settings.updated == report.updated
+
+
 class TestVariantNarrowsThePoll:
     """The variant bits must keep reads off registers the model does not serve."""
 
@@ -188,6 +210,26 @@ EXPECTED_REQUESTS = {
 }
 
 
+# Of those requests, the ones async_update_settings() issues — what a caller
+# polling the settings slowly takes off the fast schedule. On an APX device
+# twelve of them are the module serial-number islands.
+EXPECTED_SETTINGS_REQUESTS = {
+    "gen1_x1_pv": 1,
+    "gen1_x3_pv": 1,
+    "gen2_x3_pv": 3,
+    "gen3_x1_ac_eps": 8,
+    "gen3_x1_hybrid": 7,
+    "gen3_x3_hybrid": 7,
+    "gen3_x3_hybrid_mppt8": 7,
+    "gen4_x1_hybrid": 11,
+    "gen4_x1_hybrid_mppt4": 11,
+    "gen4_x1_pv": 7,
+    "gen4_x3_hybrid": 11,
+    "gen4_x3_hybrid_apx": 25,
+    "spf_x1_hybrid": 1,
+}
+
+
 @pytest.mark.parametrize("name", sorted(EXPECTED_REQUESTS))
 async def test_request_count_is_pinned(mock_modbus_unit, name: str) -> None:  # type: ignore[no-untyped-def]
     from .conftest import VARIANTS
@@ -195,6 +237,17 @@ async def test_request_count_is_pinned(mock_modbus_unit, name: str) -> None:  # 
     inverter = build(mock_modbus_unit, VARIANTS[name])
     await _poll(inverter, mock_modbus_unit)
     assert len(mock_modbus_unit.read_events) == EXPECTED_REQUESTS[name]
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_SETTINGS_REQUESTS))
+async def test_the_settings_share_of_the_poll_is_pinned(mock_modbus_unit, name: str) -> None:  # type: ignore[no-untyped-def]
+    from .conftest import VARIANTS
+
+    inverter = build(mock_modbus_unit, VARIANTS[name])
+    await _poll(inverter, mock_modbus_unit)
+    mock_modbus_unit.read_events.clear()
+    await inverter.async_update_settings()
+    assert len(mock_modbus_unit.read_events) == EXPECTED_SETTINGS_REQUESTS[name]
 
 
 async def test_the_apx_blocks_are_the_whole_difference(mock_modbus_unit) -> None:  # type: ignore[no-untyped-def]
@@ -250,14 +303,17 @@ async def test_the_apx_module_serials_poll_apart_from_the_readings(mock_modbus_u
 async def test_the_carved_module_identity_still_polls_and_does_not_lead(  # type: ignore[no-untyped-def]
     mock_modbus_unit,
 ) -> None:
-    # Splitting is the consumer's choice; async_update() still refreshes both,
-    # and the probe for the fatal-timeout rule stays the component it was.
+    # The serials ride with the settings and the readings with the status, and
+    # async_update() still refreshes both. Neither poll leads with the serials:
+    # the component it starts on is the one its fatal-timeout rule probes with.
     from .conftest import VARIANTS
 
     inverter = build(mock_modbus_unit, VARIANTS["gen4_x3_hybrid_apx"])
     report = await _poll(inverter, mock_modbus_unit)
     assert {"battery_module_settings", "battery_module_1_status"} <= report.updated
-    assert inverter.POLLED[0] == "settings"
+    assert "battery_module_settings" in inverter.SETTINGS
+    assert "battery_module_1_status" in inverter.STATUS
+    assert (inverter.POLLED[0], inverter.SETTINGS[0]) == ("status", "settings")
 
 
 class TestRawDump:

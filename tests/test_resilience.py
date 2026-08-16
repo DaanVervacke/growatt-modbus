@@ -73,8 +73,15 @@ async def test_listeners_fire_at_the_end_and_only_for_fresh_components(
     mock_modbus_unit.read_events.clear()
     await hybrid.async_update()
 
-    # One notification, after every component was tried; none for the failure.
-    assert seen == [len(mock_modbus_unit.read_events)]
+    # One notification, after every status component was tried; none for the
+    # failure. The settings poll that follows is its own and does not hold it
+    # up, so the listener sees the reads up to settings' first block.
+    settings_start = next(
+        i
+        for i, event in enumerate(mock_modbus_unit.read_events)
+        if event.register_type == "holding" and event.address == 0
+    )
+    assert seen == [settings_start]
 
 
 async def test_a_dead_link_raises_instead_of_reporting(
@@ -94,7 +101,7 @@ async def test_a_silent_inverter_raises_after_one_timeout_not_nine(
     Nothing answered, so the remaining components would only pay a timeout each.
     """
     await hybrid.async_update()
-    assert hybrid.POLLED[0] == "settings"
+    assert hybrid.POLLED[0] == "status"
     mock_modbus_unit.fail_requests(ModbusTimeoutError("asleep"))
     mock_modbus_unit.read_events.clear()
 
@@ -108,14 +115,29 @@ async def test_a_refused_first_component_still_contains_a_later_timeout(
 ) -> None:
     """A refusal is an answer: the inverter is there, so the poll goes on."""
     await hybrid.async_update()
-    mock_modbus_unit.fail_read(700, IllegalDataAddressError())  # in settings' block
+    # status leads the poll, so refusing its first block is the refusal the
+    # timeout after it has to be contained by.
+    mock_modbus_unit.fail_read(1, IllegalDataAddressError(), register_type="input")
     mock_modbus_unit.fail_read(
         3169, ModbusTimeoutError("slow battery block"), register_type="input"
     )
     report = await hybrid.async_update()
 
-    assert {"settings", "hybrid_status"} <= set(report.failed)
-    assert "status" in report.updated
+    assert {"status", "hybrid_status"} <= set(report.failed)
+    assert "battery_status" in report.updated
+
+
+async def test_a_settings_poll_of_a_silent_inverter_raises_at_once(
+    hybrid: Gen4Inverter, mock_modbus_unit: MockModbusUnit
+) -> None:
+    """A settings poll on its own is its own "nothing answered" run."""
+    await hybrid.async_update()
+    mock_modbus_unit.fail_requests(ModbusTimeoutError("asleep"))
+    mock_modbus_unit.read_events.clear()
+
+    with pytest.raises(ModbusTimeoutError):
+        await hybrid.async_update_settings()
+    assert len(mock_modbus_unit.read_events) == 1
 
 
 async def test_every_component_refreshes_on_a_healthy_device(

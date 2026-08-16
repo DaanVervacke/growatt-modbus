@@ -84,9 +84,19 @@ class GrowattInverter:
     Subclasses build their sub-systems in ``_build`` and expose them as typed
     attributes; ``POLLED`` names the ones a poll refreshes, in read order. Each
     is read independently, so one refused block cannot blank the device.
+
+    What the inverter measures and what it has been told refresh separately —
+    :meth:`async_update_status` and :meth:`async_update_settings` — so a caller
+    can poll the settings rarely, or on demand after writing one.
+    :meth:`async_update` does both.
     """
 
     GENERATION: ClassVar[Variant]
+    # The status components, in read order: what the inverter measures.
+    STATUS: ClassVar[tuple[str, ...]]
+    # The settings components, in read order: what it has been told to do, plus
+    # the identity registers that change no more often.
+    SETTINGS: ClassVar[tuple[str, ...]]
     # Every component attribute a poll may refresh, in read order. A name whose
     # attribute is None on this inverter is dropped by async_setup().
     POLLED: ClassVar[tuple[str, ...]]
@@ -124,40 +134,66 @@ class GrowattInverter:
         """
         self._polled = [name for name in self.POLLED if getattr(self, name) is not None]
 
+    async def async_update_status(self) -> UpdateReport:
+        """Refresh what the inverter measures: power, energy, battery, faults.
+
+        The first call sets the device up.
+        """
+        return await self._async_poll(self.STATUS, UpdateReport(set(), {}))
+
+    async def async_update_settings(self) -> UpdateReport:
+        """Refresh what the inverter has been told: limits, modes, time slots.
+
+        These change when something writes them, not on their own, so a caller
+        that polls them at all polls them rarely — and reads them straight after
+        writing one. The identity registers ride along, and on an APX pack so do
+        the battery serial numbers, which change less often still. The first
+        call sets the device up.
+        """
+        return await self._async_poll(self.SETTINGS, UpdateReport(set(), {}))
+
     async def async_update(self) -> UpdateReport:
-        """Refresh every sub-system this inverter serves, one at a time.
+        """Refresh status and settings together, in one report.
+
+        For a caller that does not want to schedule the two apart.
+        """
+        report = await self._async_poll(self.STATUS, UpdateReport(set(), {}))
+        return await self._async_poll(self.SETTINGS, report)
+
+    async def _async_poll(self, names: tuple[str, ...], report: UpdateReport) -> UpdateReport:
+        """Read the named sub-systems one at a time, adding to ``report``.
 
         Components are read independently, the way the integration reads its
         blocks: a sub-system whose read fails keeps its previous values while
-        the rest still refresh. Listeners fire only after every component has
-        been tried, and only on the ones that refreshed. A failure of the link
-        itself raises ``ModbusConnectionError`` instead of reporting, and a
-        timeout on the first component raises too: nothing answered, so walking
-        the rest would only pay a timeout each.
+        the rest still refresh. Listeners fire only after every component in
+        this poll has been tried, and only on the ones that refreshed. A failure
+        of the link itself raises ``ModbusConnectionError`` instead of
+        reporting, and so does a timeout with nothing in ``report`` answered
+        yet: walking the rest would only pay a timeout each.
         """
         if self._polled is None:
             await self.async_setup()
         assert self._polled is not None  # async_setup() builds it
-        updated: set[str] = set()
-        failed: dict[str, ModbusError] = {}
-        for name in self._polled:
+        polled = [name for name in names if name in self._polled]
+        for name in polled:
             component: GrowattComponent = getattr(self, name)
             try:
                 await component.async_update(notify=False)
             except ModbusConnectionError:
                 raise
             except ModbusTimeoutError as err:
-                if not updated and not failed:
-                    raise  # the first component timed out: assume the rest do too
-                failed[name] = err
+                if not report.updated and not report.failed:
+                    raise  # nothing answered at all: assume the rest times out too
+                report.failed[name] = err
             except ModbusError as err:
-                failed[name] = err
+                report.failed[name] = err
             else:
-                updated.add(name)
-        for name in updated:
-            fresh: GrowattComponent = getattr(self, name)
-            fresh.notify()
-        return UpdateReport(updated, failed)
+                report.updated.add(name)
+        for name in polled:
+            if name in report.updated:
+                fresh: GrowattComponent = getattr(self, name)
+                fresh.notify()
+        return report
 
     async def async_read_raw(self) -> dict[str, dict[int, int | bool]]:
         """Refresh, and additionally return the raw register words read.
@@ -210,7 +246,9 @@ class Gen1Inverter(GrowattInverter):
     """A legacy Growatt PV inverter (TL-S, TL3-S, NEO)."""
 
     GENERATION = Variant.GEN
-    POLLED = ("settings", "status")
+    STATUS = ("status",)
+    SETTINGS = ("settings",)
+    POLLED = (*STATUS, *SETTINGS)
 
     settings: Gen1Settings
     status: Gen1Status
@@ -226,7 +264,9 @@ class Gen2Inverter(GrowattInverter):
     """A Growatt MOD / MID TL3-X PV inverter."""
 
     GENERATION = Variant.GEN2
-    POLLED = ("settings", "status")
+    STATUS = ("status",)
+    SETTINGS = ("settings",)
+    POLLED = (*STATUS, *SETTINGS)
 
     settings: Gen2Settings
     status: Gen2Status
@@ -247,13 +287,9 @@ class Gen3Inverter(GrowattInverter):
     """A Growatt SPH or SPA storage inverter."""
 
     GENERATION = Variant.GEN3
-    POLLED = (
-        "settings",
-        "status",
-        "storage_settings",
-        "storage_status",
-        "vpp_settings",
-    )
+    STATUS = ("status", "storage_status")
+    SETTINGS = ("settings", "storage_settings", "vpp_settings")
+    POLLED = (*STATUS, *SETTINGS)
 
     settings: Gen3Settings
     status: Gen3Status
@@ -284,18 +320,21 @@ class Gen4Inverter(GrowattInverter):
     """A Growatt MIN / MOD / MID / WIT TL-XH hybrid or TL-X PV inverter."""
 
     GENERATION = Variant.GEN4
-    POLLED = (
-        "settings",
+    STATUS = (
         "status",
-        "hybrid_settings",
         "hybrid_status",
-        "battery_settings",
-        "battery_module_settings",
         "battery_status",
         "battery_module_status",
         "battery_module_1_status",
+    )
+    SETTINGS = (
+        "settings",
+        "hybrid_settings",
+        "battery_settings",
+        "battery_module_settings",
         "vpp_settings",
     )
+    POLLED = (*STATUS, *SETTINGS)
 
     settings: Gen4Settings
     status: Gen4Status
@@ -377,7 +416,9 @@ class SpfInverter(GrowattInverter):
     """A Growatt SPF or SPE off-grid inverter."""
 
     GENERATION = Variant.SPF
-    POLLED = ("settings", "status")
+    STATUS = ("status",)
+    SETTINGS = ("settings",)
+    POLLED = (*STATUS, *SETTINGS)
 
     settings: SpfSettings
     status: SpfStatus
