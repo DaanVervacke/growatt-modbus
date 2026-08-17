@@ -161,13 +161,15 @@ blocks: one slow or refused block does not take the rest of the poll with it.
 Every update method returns an `UpdateReport` — a failed component keeps its
 previous values, does not notify its listeners, and is listed by attribute name
 with its error, while every other component refreshes and notifies once that
-poll is done. A report names only what the method it came from polled, and
-listeners fire at the end of the poll that read their component, so a settings
-poll does not hold up the readings. A dead link (`ModbusConnectionError`)
-raises, and so does a timeout on the very first component: nothing answered at
-all, so the inverter is asleep or unreachable and walking the rest would only
-pay a timeout each. Once any component has answered — refreshed *or* refused —
-a later timeout is contained like any other failure:
+poll is done. A report names only what the method it came from polled, and a
+settings poll fires its own components' listeners when that call is done, so it
+does not hold up the readings; `async_update()` is one cycle and one
+notification, firing nothing until both halves have been read. A dead link
+(`ModbusConnectionError`) raises, and so does a timeout on the very first
+component: nothing answered at all, so the inverter is asleep or unreachable and
+walking the rest would only pay a timeout each. Once any component has
+answered — refreshed *or* refused — a later timeout is contained like any other
+failure:
 
 ```python
 report = await inverter.async_update()
