@@ -18,7 +18,7 @@ classifiers = [
 # The device-modelling framework plus a concrete backend. tmodbus speaks both
 # transports Growatt inverters are reached over: RTU-over-TCP gateways and
 # serial RS-485.
-dependencies = ["modbus-connection[tmodbus]>=4.7.0"]
+dependencies = ["modbus-connection[tmodbus]>=4.8.1"]
 
 [project.urls]
 Homepage = "https://github.com/balloobbot/growatt-modbus"
