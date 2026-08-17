@@ -73,15 +73,33 @@ async def test_listeners_fire_at_the_end_and_only_for_fresh_components(
     mock_modbus_unit.read_events.clear()
     await hybrid.async_update()
 
-    # One notification, after every status component was tried; none for the
-    # failure. The settings poll that follows is its own and does not hold it
-    # up, so the listener sees the reads up to settings' first block.
-    settings_start = next(
-        i
-        for i, event in enumerate(mock_modbus_unit.read_events)
-        if event.register_type == "holding" and event.address == 0
-    )
-    assert seen == [settings_start]
+    # One notification, after every component was tried; none for the failure.
+    assert seen == [len(mock_modbus_unit.read_events)]
+
+
+async def test_a_settings_poll_notifies_its_own_components(hybrid: Gen4Inverter) -> None:
+    """A settings poll on its own fires the settings listeners, and only those."""
+    await hybrid.async_update()
+    seen: list[str] = []
+    hybrid.settings.add_update_listener(lambda: seen.append("settings"))
+    hybrid.status.add_update_listener(lambda: seen.append("status"))
+
+    await hybrid.async_update_settings()
+
+    assert seen == ["settings"]
+
+
+async def test_one_update_notifies_each_component_once(hybrid: Gen4Inverter) -> None:
+    """The two halves of an update share one report, not one notification each."""
+    await hybrid.async_update()
+    seen: list[str] = []
+    hybrid.settings.add_update_listener(lambda: seen.append("settings"))
+    hybrid.status.add_update_listener(lambda: seen.append("status"))
+
+    await hybrid.async_update()
+
+    assert seen.count("status") == 1
+    assert seen.count("settings") == 1
 
 
 async def test_a_dead_link_raises_instead_of_reporting(

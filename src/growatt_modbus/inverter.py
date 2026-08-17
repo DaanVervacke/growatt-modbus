@@ -139,7 +139,9 @@ class GrowattInverter:
 
         The first call sets the device up.
         """
-        return await self._async_poll(self.STATUS, UpdateReport(set(), {}))
+        report = await self._async_poll(self.STATUS, UpdateReport(set(), {}))
+        self._notify(report)
+        return report
 
     async def async_update_settings(self) -> UpdateReport:
         """Refresh what the inverter has been told: limits, modes, time slots.
@@ -150,26 +152,31 @@ class GrowattInverter:
         the battery serial numbers, which change less often still. The first
         call sets the device up.
         """
-        return await self._async_poll(self.SETTINGS, UpdateReport(set(), {}))
+        report = await self._async_poll(self.SETTINGS, UpdateReport(set(), {}))
+        self._notify(report)
+        return report
 
     async def async_update(self) -> UpdateReport:
         """Refresh status and settings together, in one report.
 
-        For a caller that does not want to schedule the two apart.
+        For a caller that does not want to schedule the two apart. One update is
+        one notification: the status listeners wait for the settings blocks.
         """
         report = await self._async_poll(self.STATUS, UpdateReport(set(), {}))
-        return await self._async_poll(self.SETTINGS, report)
+        await self._async_poll(self.SETTINGS, report)
+        self._notify(report)  # nothing fires until the whole cycle is done
+        return report
 
     async def _async_poll(self, names: tuple[str, ...], report: UpdateReport) -> UpdateReport:
         """Read the named sub-systems one at a time, adding to ``report``.
 
         Components are read independently, the way the integration reads its
         blocks: a sub-system whose read fails keeps its previous values while
-        the rest still refresh. Listeners fire only after every component in
-        this poll has been tried, and only on the ones that refreshed. A failure
-        of the link itself raises ``ModbusConnectionError`` instead of
-        reporting, and so does a timeout with nothing in ``report`` answered
-        yet: walking the rest would only pay a timeout each.
+        the rest still refresh. Nothing notifies here — the caller does that
+        once its whole update is done. A failure of the link itself raises
+        ``ModbusConnectionError`` instead of reporting, and so does a timeout
+        with nothing in ``report`` answered yet: walking the rest would only pay
+        a timeout each.
         """
         if self._polled is None:
             await self.async_setup()
@@ -189,11 +196,13 @@ class GrowattInverter:
                 report.failed[name] = err
             else:
                 report.updated.add(name)
-        for name in polled:
-            if name in report.updated:
-                fresh: GrowattComponent = getattr(self, name)
-                fresh.notify()
         return report
+
+    def _notify(self, report: UpdateReport) -> None:
+        """Fire the listeners of everything this update refreshed."""
+        for name in report.updated:
+            component: GrowattComponent = getattr(self, name)
+            component.notify()
 
     async def async_read_raw(self) -> dict[str, dict[int, int | bool]]:
         """Refresh, and additionally return the raw register words read.
