@@ -1,8 +1,9 @@
 # Cross-check: GrowattESPHome vs growatt-modbus vs official protocol
 
-Static comparison (no hardware access) of three sources for a **Growatt MIN
-3000TL-XE** (PV-only, 1-phase, 2 MPPT — part of the documented "MIN
-2500-6000TL-XE" family):
+Comparison of three sources for a **Growatt MIN 3000TL-XE** (PV-only, 1-phase,
+2 MPPT — part of the documented "MIN 2500-6000TL-XE" family). Began as a static
+comparison; the key findings were later confirmed against the real unit (see
+"Live verification" below):
 
 1. [pvprodk/GrowattESPHome](https://github.com/pvprodk/GrowattESPHome)'s
    `growatt.yaml` — an ESPHome config the author confirms works against real
@@ -119,12 +120,40 @@ unused register can't be fully distinguished without ever observing a change.
 Serial number, fixed (the first attempt lacked `response_size`, an
 undocumented required field for multi-register `modbus_controller`
 text sensors — silently truncated to 1 register/2 bytes): **`DCF2A2509G`**.
+Firmware string (register 9, read the same way `detect()` reads it):
+**`AL1.0ZABA`**.
 
 `DCF` does **not** appear in `variants.py`'s `SERIAL_PREFIX_VARIANTS` table
 (63 prefixes checked against the fork's source — ABJ, SKL, XVM, ..., BDK,
-WVN, ..., BY3), nor in `FIRMWARE_PREFIX_VARIANTS`. `detect()` would exhaust
-both tables and raise `LookupError("unrecognised Growatt inverter")` against
-this exact, currently-producing, real-world unit.
+WVN, ..., BY3). But this does **not** raise `LookupError` as first assumed —
+because the firmware prefix `AL1` **is** in `FIRMWARE_PREFIX_VARIANTS`, mapped
+to `HYBRID | GEN4 | X1`. `detect()` checks the serial first (no match), then
+falls back to the firmware string, matches `AL1`, and **silently misidentifies
+this PV-only inverter as a hybrid.** Growatt shares the `AL1` firmware code
+across the battery TL-XH models and the battery-less TL-XE; whoever built the
+table only knew the hybrid ones.
+
+**Impact of the misidentification.** No live data is lost — none of the
+solar/grid/energy fields are `Variant.PV`-tagged (confirmed: zero PV-tagged
+fields in `gen4.py`), so they are read regardless of the detected type. But
+labelled `HYBRID`, the library switches on the battery/BMS fields, polls
+battery registers that don't exist here, and probes register 700 for an APX
+pack at setup — surfacing battery voltage / SoC / charge-power that describe a
+battery that isn't present.
+
+**Nameplate, confirmed physically** (photo of the unit): model **MIN
+3000TL-XE**, header **"PV Grid Inverter"** (i.e. no battery), **PV Isc 16 A ×2**
+and **max input current 12.5 A ×2** (2 MPPT), **nominal output 230 V** single
+value (single-phase), **S/N `DCF2A2509G`** (matches the register read exactly).
+This pins the variant to `PV | GEN4 | X1` with zero ambiguity.
+
+**Fix** (submitted as a draft PR to `balloobbot/growatt-modbus`): add
+`"DCF": Variant.PV | Variant.GEN4 | Variant.X1` to `SERIAL_PREFIX_VARIANTS`.
+Because the serial is checked before the firmware fallback, a recognised serial
+short-circuits the wrong `AL1` guess — so this both identifies the unit
+correctly and dodges the phantom-battery misidentification. A comment was also
+added to the `AL1` firmware entry flagging the shared prefix for the next
+unlisted TL-XE.
 
 ## Open questions — need a live read to resolve
 
@@ -135,11 +164,9 @@ this exact, currently-producing, real-world unit.
    only observed at `1` (Normal) so far — still open whether it ever reports
    one of the 13 ESPHome-decoded states or stays within the documented 3.
 3. ~~What is this unit's actual serial-number prefix~~ **Resolved, and it's
-   the headline finding: `detect()` does not recognize this inverter.**
-   `DCF` is missing from both lookup tables. This is the one finding here
-   that's an unambiguous functional bug, not a nuance — a one-line fix
-   (`"DCF": Variant.PV | Variant.GEN4 | Variant.X1` in
-   `SERIAL_PREFIX_VARIANTS`) would resolve it, pending confirmation that
-   `PV | GEN4 | X1` is the right variant for this specific unit (2 MPPT,
-   1-phase, no battery — matches the pattern of neighboring `TL-X`/`TL-XE`
-   entries like `BDK`, `XTD`, `QYL`).
+   the headline finding — but not the one first assumed.** Serial `DCF` is
+   unlisted, yet `detect()` does **not** fail: the firmware prefix `AL1`
+   matches the hybrid fallback, so the library **silently misidentifies this
+   PV inverter as a hybrid**. The one-line fix
+   (`"DCF": Variant.PV | Variant.GEN4 | Variant.X1`) is confirmed correct
+   against the physical nameplate and submitted as a draft PR upstream.
