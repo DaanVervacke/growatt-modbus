@@ -69,35 +69,67 @@ and `3000-3124`), while `1000-1124` belongs to a **different product line**
   energy, inverter temperature) have **no field in `growatt-modbus`'s base
   `Gen4Status`** at their documented address. The library only models the
   equivalent data in `Gen4HybridStatus` at the `3000+` block — built for every
-  Gen4 inverter regardless of PV/HYBRID category, per `variants.py`, but
-  unverified against this unit's actual behavior.
+  Gen4 inverter regardless of PV/HYBRID category, per `variants.py`.
+  **Confirmed live (see below): this data is genuinely available there too.**
+  The gap is real but harmless in practice — a naming/documentation-clarity
+  issue (plain-PV data served by a class named "Hybrid"), not a functional one.
 - **2 of ESPHome's own entities** (holding 1044/1092, "Inverter Priority" /
   "AC Charging") read addresses the manufacturer's own doc scopes to the
-  Storage/MIX/SPA/SPH product line, not MIN/TL-X — plausible on a working
-  config only if the register is silently unimplemented (reads 0/garbage
-  without erroring) rather than actually meaningful.
+  Storage/MIX/SPA/SPH product line, not MIN/TL-X. **Confirmed live: both read
+  a clean, stable `0.0`** — not an error, not an unimplemented sentinel
+  (`0xFFFF`) — consistent with being genuinely inactive on a battery-less
+  unit, though this can't be proven with certainty short of seeing them ever
+  change.
 - **1 status register** (input 0) is decoded by ESPHome with a 13-state table
   the manufacturer's doc doesn't support (only 3 states documented) — likely
   copied from a hybrid/storage ESPHome template without adapting it for a
-  PV-only unit.
+  PV-only unit. Live read showed `1` ("Normal") during production — consistent
+  with either the 3-state doc or the 13-state table, so this alone doesn't
+  distinguish them; would need to catch a fault/edge condition to test further.
 - **1 library field** (`Gen4Status.priority` @ input 118) is built for every
   Gen4 variant but documented by Growatt as storage-only.
 - What **does** line up across all three sources: `inverter_switch`,
   `active_power_limit`, `output_power`, and the fault-code registers.
 
+## Live verification (2026-09-04, real MIN 3000TL-XE, mid-production)
+
+Confirmed against the actual unit via temporary diagnostic sensors added to
+`growatt.yaml`, read through Home Assistant:
+
+| Measurement | Base address (ESPHome) | 3000-block address (`Gen4HybridStatus`) | Verdict |
+|---|---|---|---|
+| PV1 voltage | 188.1 V (addr 3) | 184.4 V (addr 3003) | **Live, tracks together** |
+| PV1 current | 0.9 A (addr 4) | 0.9 A (addr 3004) | **Live, exact match** |
+| PV1 power | 183.3 W (addr 5) | 182.1 W (addr 3005) | **Live, tracks together** |
+| Frequency | 49.97 Hz (addr 37) | 49.98 Hz (addr 3025) | **Live, tracks together** |
+| Voltage Phase A | 228.7 V (addr 38) | 228.6 V (addr 3026) | **Live, tracks together** |
+
+Small deltas are normal sampling drift (readings taken via two separate
+Modbus round-trips a few seconds apart on a moving PV/grid value) — this is
+the same live feed, read twice through two different addresses. **The
+`Gen4HybridStatus` 3000-block is fully live and correct on this PV-only unit**,
+resolving open question 1 below in the library's favor.
+
+Holding 1044 and 1092, read as raw unmapped 16-bit numbers (bypassing
+ESPHome's `optionsmap`): both `0.0`, cleanly, no errors. Resolves open
+question 2 as "reads real, stable data" — whether that data is *meaningful*
+(a genuine "no AC charging / load-first" state) or merely an always-zero
+unused register can't be fully distinguished without ever observing a change.
+
+Serial number attempt (holding 23, 5 words, ASCII) came back as `"DC"` —
+too short to be a real Growatt serial, and almost certainly a bug in the
+ESPHome `text_sensor` config used to test it (`register_count` not honored
+as expected) rather than a finding about the hardware. Open question 3 is
+still unresolved.
+
 ## Open questions — need a live read to resolve
 
-1. Does register 3 (input) on this exact unit actually return PV1 voltage
-   (matching ESPHome + the base-range doc), or does only 3003 (the
-   `Gen4HybridStatus` address) return live data? Growatt firmware is known to
-   mirror some registers across both blocks, but that isn't guaranteed model
-   by model.
-2. What does holding 1044/1092 and input 0 actually return on this unit —
-   zero/unimplemented, or does Growatt firmware answer them anyway?
+1. ~~Does register 3 (input) on this exact unit actually return PV1 voltage~~
+   **Resolved: yes, and so does the 3000-block equivalent.** See above.
+2. ~~What does holding 1044/1092 and input 0 actually return on this unit~~
+   **Partially resolved:** clean `0.0` on both holding registers; input 0
+   only observed at `1` (Normal) so far — still open whether it ever reports
+   one of the 13 ESPHome-decoded states or stays within the documented 3.
 3. What is this unit's actual serial-number prefix, to confirm whether
-   `detect()` recognizes it at all today.
-
-None of the above required hardware to identify — they were resolved from the
-manufacturer's own protocol document — but confirming *actual* register
-values on this specific MIN 3000TL-XE is the next step before changing any
-code.
+   `detect()` recognizes it at all today. **Still open** — the diagnostic
+   sensor added to test this needs fixing first.
