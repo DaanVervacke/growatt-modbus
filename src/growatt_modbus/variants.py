@@ -167,6 +167,7 @@ SERIAL_PREFIX_VARIANTS: Final[dict[str, Variant]] = {
     "QYL": Variant.PV | Variant.GEN4 | Variant.X1,  # MIN 2500 TL-X, 2 MPPT
     "XTD": Variant.PV | Variant.GEN4 | Variant.X1,  # MIN 5000 TL-X, 2 MPPT
     "BDK": Variant.PV | Variant.GEN4 | Variant.X1,  # MIN 4200 TL-XE, 2 MPPT
+    "DCF": Variant.PV | Variant.GEN4 | Variant.X1,  # MIN 3000 TL-XE, 2 MPPT
     "WVN": Variant.PV | Variant.GEN4 | Variant.X1 | Variant.MPPT3,  # MIN 8000 TL-X2
     # MOD, MID and MAX PV
     "RDH": Variant.PV | Variant.GEN2 | Variant.X3,  # MOD 4000 TL3-X, 2 MPPT
@@ -204,6 +205,9 @@ FIRMWARE_PREFIX_VARIANTS: Final[dict[str, Variant]] = {
     "SPH": Variant.HYBRID | Variant.GEN3 | Variant.X3,  # Hybrid SPH 4kW - 10kW
     "YA1": Variant.HYBRID | Variant.GEN3 | Variant.X3,  # Hybrid SPH 4kW - 10kW 3P TL UP
     "RH1": Variant.AC | Variant.GEN3 | Variant.X1,  # SPA 3000TL BL, no PV MPPT
+    # The PV MIN TL-XE reports this firmware prefix too, despite having no
+    # battery; it is caught by its serial prefix above. An unlisted TL-XE
+    # serial falls through to here and is mislabelled HYBRID.
     "AL1": Variant.HYBRID | Variant.GEN4 | Variant.X1,  # Hybrid TL-XH 2.5kW - 6kW (MIN)
     "DN1": Variant.HYBRID | Variant.GEN4 | Variant.X3,  # Hybrid TL3-XH (BP) (MOD/MID)
     "V": Variant.HYBRID | Variant.GEN4 | Variant.X3,  # Hybrid TL3-XH 3kW - 10kW (MOD)
