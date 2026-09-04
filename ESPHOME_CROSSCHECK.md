@@ -116,11 +116,15 @@ question 2 as "reads real, stable data" — whether that data is *meaningful*
 (a genuine "no AC charging / load-first" state) or merely an always-zero
 unused register can't be fully distinguished without ever observing a change.
 
-Serial number attempt (holding 23, 5 words, ASCII) came back as `"DC"` —
-too short to be a real Growatt serial, and almost certainly a bug in the
-ESPHome `text_sensor` config used to test it (`register_count` not honored
-as expected) rather than a finding about the hardware. Open question 3 is
-still unresolved.
+Serial number, fixed (the first attempt lacked `response_size`, an
+undocumented required field for multi-register `modbus_controller`
+text sensors — silently truncated to 1 register/2 bytes): **`DCF2A2509G`**.
+
+`DCF` does **not** appear in `variants.py`'s `SERIAL_PREFIX_VARIANTS` table
+(63 prefixes checked against the fork's source — ABJ, SKL, XVM, ..., BDK,
+WVN, ..., BY3), nor in `FIRMWARE_PREFIX_VARIANTS`. `detect()` would exhaust
+both tables and raise `LookupError("unrecognised Growatt inverter")` against
+this exact, currently-producing, real-world unit.
 
 ## Open questions — need a live read to resolve
 
@@ -130,6 +134,12 @@ still unresolved.
    **Partially resolved:** clean `0.0` on both holding registers; input 0
    only observed at `1` (Normal) so far — still open whether it ever reports
    one of the 13 ESPHome-decoded states or stays within the documented 3.
-3. What is this unit's actual serial-number prefix, to confirm whether
-   `detect()` recognizes it at all today. **Still open** — the diagnostic
-   sensor added to test this needs fixing first.
+3. ~~What is this unit's actual serial-number prefix~~ **Resolved, and it's
+   the headline finding: `detect()` does not recognize this inverter.**
+   `DCF` is missing from both lookup tables. This is the one finding here
+   that's an unambiguous functional bug, not a nuance — a one-line fix
+   (`"DCF": Variant.PV | Variant.GEN4 | Variant.X1` in
+   `SERIAL_PREFIX_VARIANTS`) would resolve it, pending confirmation that
+   `PV | GEN4 | X1` is the right variant for this specific unit (2 MPPT,
+   1-phase, no battery — matches the pattern of neighboring `TL-X`/`TL-XE`
+   entries like `BDK`, `XTD`, `QYL`).
